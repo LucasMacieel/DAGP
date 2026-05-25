@@ -1,0 +1,23 @@
+[project]
+name = "dagp"
+version = "0.1.0"
+description = "Dimensionally-Aware Genetic Programming - FLA experiments (arXiv:2004.12762)"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "numpy",
+    "networkx",
+    "matplotlib",
+    "scipy",
+    "deap",
+    "tqdm",
+]
+
+[tool.setuptools.packages.find]
+include = ["dagp*"]
+
+[tool.pyrefly]
+project-includes = [
+    "**/*.py*",
+    "**/*.ipynb",
+]
