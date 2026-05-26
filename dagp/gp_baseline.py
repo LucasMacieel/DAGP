@@ -148,6 +148,60 @@ def run_gp_baseline(
         new_ind2 = ind2[:slice2.start] + ind1[slice1] + ind2[slice2.stop:]
         return ind1.__class__(new_ind1), ind2.__class__(new_ind2)
 
+    def cxGPUniform(ind1, ind2):
+        """Poli and Langdon's Uniform Crossover for GP trees."""
+        def get_child_indices(tree, idx):
+            arity = tree[idx].arity
+            children = []
+            curr = idx + 1
+            for _ in range(arity):
+                sub_slice = tree.searchSubtree(curr)
+                children.append((curr, sub_slice.stop))
+                curr = sub_slice.stop
+            return children
+
+        def align_and_cross(idx1, idx2):
+            node1 = ind1[idx1]
+            node2 = ind2[idx2]
+            
+            # If both are primitives and have the same arity, they are in the common region
+            if node1.arity > 0 and node1.arity == node2.arity:
+                # Swap primitives with 50% probability
+                if random.random() < 0.5:
+                    n1, n2 = node2, node1
+                else:
+                    n1, n2 = node1, node2
+                    
+                children1 = get_child_indices(ind1, idx1)
+                children2 = get_child_indices(ind2, idx2)
+                
+                off1_parts = [n1]
+                off2_parts = [n2]
+                
+                for (c1_start, c1_end), (c2_start, c2_end) in zip(children1, children2):
+                    o1_sub, o2_sub = align_and_cross(c1_start, c2_start)
+                    off1_parts.extend(o1_sub)
+                    off2_parts.extend(o2_sub)
+                    
+                return off1_parts, off2_parts
+            else:
+                # Boundary of common region: swap entire subtrees with 50% probability
+                slice1 = ind1.searchSubtree(idx1)
+                slice2 = ind2.searchSubtree(idx2)
+                
+                subtree1 = ind1[slice1]
+                subtree2 = ind2[slice2]
+                
+                if random.random() < 0.5:
+                    return list(subtree2), list(subtree1)
+                else:
+                    return list(subtree1), list(subtree2)
+
+        off1_nodes, off2_nodes = align_and_cross(0, 0)
+        ind1[:] = off1_nodes
+        ind2[:] = off2_nodes
+        return ind1, ind2
+
     def mate_random(ind1, ind2):
         op = random.choice(["subtree", "one_point", "size_fair", "uniform", "context_preserved"])
         if op == "subtree":
@@ -157,8 +211,7 @@ def run_gp_baseline(
         elif op == "size_fair":
             return cxSizeFair(ind1, ind2)
         elif op == "uniform":
-            # For uniform, we fallback to one point biased as DEAP doesn't support tree uniform crossover natively
-            return gp.cxOnePointLeafBiased(ind1, ind2, termpb=0.5)
+            return cxGPUniform(ind1, ind2)
         else:
             return cxContextPreserved(ind1, ind2)
 
