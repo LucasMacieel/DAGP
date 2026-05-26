@@ -32,6 +32,7 @@ def greedy_local_search(
     use_linear_scaling: bool = False,
     eval_cache: dict[int, float] | None = None,
     step_cache: dict[int, Node | None] | None = None,
+    hash_to_tree: dict[int, Node] | None = None,
 ) -> LocalSearchResult:
 
     s = initial.copy()
@@ -52,6 +53,8 @@ def greedy_local_search(
 
     initial_mse = current_mse
     trajectory = [current_hash]
+    if hash_to_tree is not None:
+        hash_to_tree[current_hash] = s.copy()
     steps = 0
 
     if current_mse < 1e-9:
@@ -78,6 +81,8 @@ def greedy_local_search(
             best_hash = s.tree_hash()
             current_mse = eval_cache[best_hash]
             trajectory.append(best_hash)
+            if hash_to_tree is not None:
+                hash_to_tree[best_hash] = s.copy()
             steps += 1
             continue
 
@@ -103,6 +108,8 @@ def greedy_local_search(
             n_evals += 1
 
             if nb_mse < 1e-9:
+                if hash_to_tree is not None:
+                    hash_to_tree[nb_hash] = nb.copy()
                 return LocalSearchResult(
                     initial_tree=initial,
                     final_tree=nb,
@@ -130,6 +137,8 @@ def greedy_local_search(
         s = best_neighbour
         current_mse = best_mse
         trajectory.append(s.tree_hash())
+        if hash_to_tree is not None:
+            hash_to_tree[s.tree_hash()] = s.copy()
         steps += 1
 
     res = LocalSearchResult(
