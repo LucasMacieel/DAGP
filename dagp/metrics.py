@@ -16,7 +16,7 @@ class LONMetrics:
     C: float  # clustering coefficient
     Cr: float  # clustering coefficient of random graph
     avg_path_len: float  # average shortest path length (-1 if disconnected)
-    pi: float  # fraction in largest connected component
+    pi: int  # connectivity (1 if fully connected, 0 if disconnected)
     S: int  # number of connected components
     nhits: int  # hits to global optimum
 
@@ -35,7 +35,7 @@ def compute_metrics(graph: nx.Graph, nhits: int) -> LONMetrics:
             C=0.0,
             Cr=0.0,
             avg_path_len=0.0 if nv == 1 else -1.0,
-            pi=1.0 if nv == 1 else 0.0,
+            pi=1 if nv == 1 else 0,
             S=1 if nv >= 1 else 0,
             nhits=nhits,
         )
@@ -57,12 +57,8 @@ def compute_metrics(graph: nx.Graph, nhits: int) -> LONMetrics:
     components = list(nx.connected_components(G))
     S = len(components)
 
-    # Fraction in largest connected component
-    if components:
-        largest_cc = max(len(c) for c in components)
-        pi = largest_cc / nv
-    else:
-        pi = 0.0
+    # Connectivity (paper §4.2: 1 if fully connected / S == 1, 0 if disconnected)
+    pi = 1 if S == 1 else 0
 
     return LONMetrics(
         nv=nv,
@@ -70,7 +66,7 @@ def compute_metrics(graph: nx.Graph, nhits: int) -> LONMetrics:
         C=round(C, 2),
         Cr=round(Cr, 2),
         avg_path_len=round(avg_path_len, 2) if avg_path_len >= 0 else avg_path_len,
-        pi=round(pi, 2),
+        pi=pi,
         S=S,
         nhits=nhits,
     )
@@ -102,9 +98,9 @@ def format_metrics_table(
         line = (
             f"{eq_id:<12} | "
             f"{ns.nv:>4} {ns.ne:>4} {ns.C:>5.2f} {ns.Cr:>5.2f} "
-            f"{ns.avg_path_len:>6.2f} {ns.pi:>4.2f} {ns.S:>3} {ns.nhits:>5} | "
+            f"{ns.avg_path_len:>6.2f} {ns.pi:>4} {ns.S:>3} {ns.nhits:>5} | "
             f"{ls.nv:>4} {ls.ne:>4} {ls.C:>5.2f} {ls.Cr:>5.2f} "
-            f"{ls.avg_path_len:>6.2f} {ls.pi:>4.2f} {ls.S:>3} {ls.nhits:>5}"
+            f"{ls.avg_path_len:>6.2f} {ls.pi:>4} {ls.S:>3} {ls.nhits:>5}"
         )
         lines.append(line)
 
