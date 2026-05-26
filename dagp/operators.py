@@ -30,10 +30,11 @@ def _generate_subtrees_with_sig(
         for exp, unit in zip(exponents, var_units):
             sig = mul_sig(sig, pow_sig(unit, exp))
         if sig == target_sig:
-            # Build subtree
+            # Build subtree with only non-zero exponents
             terms = []
             for i, (name, unit, exp) in enumerate(zip(var_names, var_units, exponents)):
-                terms.append(Node.variable(name, i, exp, unit))
+                if exp != 0:
+                    terms.append(Node.variable(name, i, exp, unit))
             if not terms:
                 # All-zero = constant 1 (dimensionless)
                 if target_sig == DIMENSIONLESS:

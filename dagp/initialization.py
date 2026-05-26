@@ -32,7 +32,8 @@ def _build_tree_from_exponents(
     # Collect non-zero terms
     terms: list[Node] = []
     for i, (name, unit, exp) in enumerate(zip(var_names, var_units, exponents)):
-        terms.append(Node.variable(name, i, exp, unit))
+        if exp != 0:
+            terms.append(Node.variable(name, i, exp, unit))
 
     if not terms:
         return None  # All zero exponents = constant 1 = not useful
