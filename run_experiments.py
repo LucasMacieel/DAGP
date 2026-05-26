@@ -134,11 +134,13 @@ def run_gp_experiment(
     equation: FeynmanEquation,
     data: np.ndarray,
     targets: np.ndarray,
+    use_linear_scaling: bool = True,
 ):
     """Run GP baseline for a single equation."""
     from dagp.gp_baseline import run_gp_baseline
 
-    logger.info("\n  --- GP Baseline ---")
+    scaling_str = "scaling" if use_linear_scaling else "no scaling"
+    logger.info(f"\n  --- GP Baseline ({scaling_str}) ---")
     t0 = time.time()
 
     result = run_gp_baseline(
@@ -147,10 +149,11 @@ def run_gp_experiment(
         targets=targets,
         var_names=equation.var_names,
         n_runs=50,
+        use_linear_scaling=use_linear_scaling,
     )
 
     t_gp = time.time() - t0
-    logger.info(f"  GP completed in {t_gp:.1f}s")
+    logger.info(f"  GP ({scaling_str}) completed in {t_gp:.1f}s")
     logger.info(f"  Best MSE: {result.best_mse:.6e}")
     logger.info(f"  Median MSE: {result.median_mse:.6e}")
     logger.info(f"  Hits: {result.n_hits}/50")
@@ -239,14 +242,16 @@ def main():
 
         # Run GP baseline if requested
         if args.gp:
-            gp_results[eq_id] = run_gp_experiment(equation, data, targets)
+            gp_ns = run_gp_experiment(equation, data, targets, use_linear_scaling=False)
+            gp_ls = run_gp_experiment(equation, data, targets, use_linear_scaling=True)
+            gp_results[eq_id] = (gp_ns, gp_ls)
 
     # Print Table 4: evaluations to hit
     if all_lons:
         logger.info(f"\n\n{'=' * 80}")
         logger.info("  EVALUATIONS TABLE (Table 4 reproduction)")
         logger.info(f"{'=' * 80}\n")
-        header = f"{'Eq. label':<12}  {'no scaling':>12}  {'scaling':>12}  {'GP scaling':>15}"
+        header = f"{'Eq. label':<12}  {'no scaling':>12}  {'scaling':>12}  {'GP no scaling':>15}  {'GP scaling':>15}"
         print(header)
         print("-" * len(header))
         for eq_id, (lon_ns, lon_ls) in all_lons.items():
@@ -260,12 +265,15 @@ def main():
                 if lon_ls.evaluations_to_hit >= 0
                 else "-"
             )
-            gp_str = "-"
+            gp_ns_str = "-"
+            gp_ls_str = "-"
             if eq_id in gp_results:
-                gp_res = gp_results[eq_id]
-                if gp_res.n_hits > 0 and gp_res.avg_evals_to_hit is not None:
-                    gp_str = f"{gp_res.avg_evals_to_hit:.0f} ({gp_res.n_hits})"
-            print(f"{eq_id:<12}  {ns_str:>12}  {ls_str:>12}  {gp_str:>15}")
+                gp_ns, gp_ls = gp_results[eq_id]
+                if gp_ns.n_hits > 0 and gp_ns.avg_evals_to_hit is not None:
+                    gp_ns_str = f"{gp_ns.avg_evals_to_hit:.0f} ({gp_ns.n_hits})"
+                if gp_ls.n_hits > 0 and gp_ls.avg_evals_to_hit is not None:
+                    gp_ls_str = f"{gp_ls.avg_evals_to_hit:.0f} ({gp_ls.n_hits})"
+            print(f"{eq_id:<12}  {ns_str:>12}  {ls_str:>12}  {gp_ns_str:>15}  {gp_ls_str:>15}")
         print()
 
         # Save evaluations table
@@ -284,12 +292,15 @@ def main():
                     if lon_ls.evaluations_to_hit >= 0
                     else "-"
                 )
-                gp_str = "-"
+                gp_ns_str = "-"
+                gp_ls_str = "-"
                 if eq_id in gp_results:
-                    gp_res = gp_results[eq_id]
-                    if gp_res.n_hits > 0 and gp_res.avg_evals_to_hit is not None:
-                        gp_str = f"{gp_res.avg_evals_to_hit:.0f} ({gp_res.n_hits})"
-                f.write(f"{eq_id:<12}  {ns_str:>12}  {ls_str:>12}  {gp_str:>15}\n")
+                    gp_ns, gp_ls = gp_results[eq_id]
+                    if gp_ns.n_hits > 0 and gp_ns.avg_evals_to_hit is not None:
+                        gp_ns_str = f"{gp_ns.avg_evals_to_hit:.0f} ({gp_ns.n_hits})"
+                    if gp_ls.n_hits > 0 and gp_ls.avg_evals_to_hit is not None:
+                        gp_ls_str = f"{gp_ls.avg_evals_to_hit:.0f} ({gp_ls.n_hits})"
+                f.write(f"{eq_id:<12}  {ns_str:>12}  {ls_str:>12}  {gp_ns_str:>15}  {gp_ls_str:>15}\n")
         logger.info(f"Evaluations table saved: {eval_path}")
 
     # Print Table 5: graph metrics
@@ -320,15 +331,24 @@ def main():
         logger.info(f"\n\n{'=' * 80}")
         logger.info("  GP BASELINE RESULTS")
         logger.info(f"{'=' * 80}\n")
-        for eq_id, res in gp_results.items():
-            avg_str = (
-                f", avg_evals={res.avg_evals_to_hit:.0f}"
-                if res.avg_evals_to_hit is not None
+        for eq_id, (res_ns, res_ls) in gp_results.items():
+            avg_str_ns = (
+                f", avg_evals={res_ns.avg_evals_to_hit:.0f}"
+                if res_ns.avg_evals_to_hit is not None
+                else ""
+            )
+            avg_str_ls = (
+                f", avg_evals={res_ls.avg_evals_to_hit:.0f}"
+                if res_ls.avg_evals_to_hit is not None
                 else ""
             )
             print(
-                f"{eq_id}: best={res.best_mse:.4e}, "
-                f"median={res.median_mse:.4e}, hits={res.n_hits}/50{avg_str}"
+                f"{eq_id} (no scaling): best={res_ns.best_mse:.4e}, "
+                f"median={res_ns.median_mse:.4e}, hits={res_ns.n_hits}/50{avg_str_ns}"
+            )
+            print(
+                f"{eq_id} (scaling):    best={res_ls.best_mse:.4e}, "
+                f"median={res_ls.median_mse:.4e}, hits={res_ls.n_hits}/50{avg_str_ls}"
             )
 
 

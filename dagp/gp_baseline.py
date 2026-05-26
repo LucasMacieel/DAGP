@@ -47,6 +47,7 @@ def run_gp_baseline(
     cx_prob: float = 0.9,
     hit_threshold: float = 1e-9,
     seed: int = 42,
+    use_linear_scaling: bool = True,
 ) -> GPResult:
     # Clean up any previous DEAP creator definitions
     if "FitnessMin" in creator.__dict__:
@@ -83,17 +84,21 @@ def run_gp_baseline(
             preds = np.array([func(*row) for row in data])
             if not np.all(np.isfinite(preds)):
                 return (float("inf"),)
-            # Linear scaling
-            mean_p = np.mean(preds)
-            mean_t = np.mean(targets)
-            var_p = np.var(preds)
-            if var_p < 1e-30:
-                return (float(np.mean((targets - mean_t) ** 2)),)
-            cov_pt = np.mean(preds * targets) - mean_p * mean_t
-            b = cov_pt / var_p
-            a = mean_t - b * mean_p
-            scaled = a + b * preds
-            mse = float(np.mean((scaled - targets) ** 2))
+            if use_linear_scaling:
+                # Linear scaling
+                mean_p = np.mean(preds)
+                mean_t = np.mean(targets)
+                var_p = np.var(preds)
+                if var_p < 1e-30:
+                    return (float(np.mean((targets - mean_t) ** 2)),)
+                cov_pt = np.mean(preds * targets) - mean_p * mean_t
+                b = cov_pt / var_p
+                a = mean_t - b * mean_p
+                scaled = a + b * preds
+                mse = float(np.mean((scaled - targets) ** 2))
+            else:
+                # Direct MSE without scaling
+                mse = float(np.mean((preds - targets) ** 2))
             return (mse,)
         except (OverflowError, FloatingPointError, ZeroDivisionError, ValueError):
             return (float("inf"),)
@@ -243,17 +248,33 @@ def run_gp_baseline(
 
             while (run_evals < max_evals
                    and hof[0].fitness.values[0] >= hit_threshold):
-                offspring = toolbox.select(pop, len(pop))
-                offspring = algorithms.varAnd(offspring, toolbox, cx_prob, mut_prob)
+                # 1. Select k = 3 individuals at random
+                indices = random.sample(range(len(pop)), 3)
+                # Sort indices by the MSE (raw fitness value) in ascending order.
+                # Smaller MSE is better. pop[indices[0]] is parent1, pop[indices[1]] is parent2, pop[indices[2]] is worst.
+                indices.sort(key=lambda idx: pop[idx].fitness.values[0])
+                parent1_idx, parent2_idx, worst_idx = indices
+                parent1 = pop[parent1_idx]
+                parent2 = pop[parent2_idx]
 
-                invalid_ind = [ind for ind in offspring if not ind.fitness.valid]
-                run_evals += len(invalid_ind)
-                fitnesses = toolbox.map(toolbox.evaluate, invalid_ind)
-                for ind, fit in zip(invalid_ind, fitnesses):
-                    ind.fitness.values = fit
+                # 2. Recombine the parents to produce one offspring
+                # mate returns a tuple of two offspring; choose the first one
+                off1, _ = toolbox.mate(toolbox.clone(parent1), toolbox.clone(parent2))
+                offspring = off1
 
-                hof.update(offspring)
-                pop[:] = offspring
+                # 3. Mutate the offspring with probability mut_prob (0.5)
+                if random.random() < mut_prob:
+                    offspring, = toolbox.mutate(offspring)
+
+                # 4. Evaluate the offspring (exactly 1 evaluation)
+                offspring.fitness.values = toolbox.evaluate(offspring)
+                run_evals += 1
+
+                # 5. Replace the worst of the 3 selected individuals in the population
+                pop[worst_idx] = offspring
+
+                # 6. Update Hall of Fame and stats
+                hof.update([offspring])
                 if stats:
                     stats.compile(pop)
         except Exception:
