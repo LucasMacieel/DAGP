@@ -76,8 +76,9 @@ def generate_all_neighbours(
                 neighbours.append(new_tree)
 
         # --- Operator 2: Multiply by integer ---
-        # Replace subtree t with (t * k), k ∈ [-3,3]\{0}
         for k in range(-3, 4):
+            if k == 0 or k == 1:
+                continue
             new_size = tree_size + 2  # operator node + constant node
             if new_size > MAX_TREE_SIZE:
                 continue
