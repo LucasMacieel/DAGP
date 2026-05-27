@@ -273,7 +273,9 @@ def main():
                     gp_ns_str = f"{gp_ns.avg_evals_to_hit:.0f} ({gp_ns.n_hits})"
                 if gp_ls.n_hits > 0 and gp_ls.avg_evals_to_hit is not None:
                     gp_ls_str = f"{gp_ls.avg_evals_to_hit:.0f} ({gp_ls.n_hits})"
-            print(f"{eq_id:<12}  {ns_str:>12}  {ls_str:>12}  {gp_ns_str:>15}  {gp_ls_str:>15}")
+            print(
+                f"{eq_id:<12}  {ns_str:>12}  {ls_str:>12}  {gp_ns_str:>15}  {gp_ls_str:>15}"
+            )
         print()
 
         # Save evaluations table
@@ -300,7 +302,9 @@ def main():
                         gp_ns_str = f"{gp_ns.avg_evals_to_hit:.0f} ({gp_ns.n_hits})"
                     if gp_ls.n_hits > 0 and gp_ls.avg_evals_to_hit is not None:
                         gp_ls_str = f"{gp_ls.avg_evals_to_hit:.0f} ({gp_ls.n_hits})"
-                f.write(f"{eq_id:<12}  {ns_str:>12}  {ls_str:>12}  {gp_ns_str:>15}  {gp_ls_str:>15}\n")
+                f.write(
+                    f"{eq_id:<12}  {ns_str:>12}  {ls_str:>12}  {gp_ns_str:>15}  {gp_ls_str:>15}\n"
+                )
         logger.info(f"Evaluations table saved: {eval_path}")
 
     # Print Table 5: graph metrics

@@ -60,7 +60,7 @@ def extract_lon(
     local_optima: dict[int, Node] = {}
     local_optima_mse: dict[int, float] = {}
     search_results: list[LocalSearchResult] = []
-    
+
     eval_cache: dict[int, float] = {}
     step_cache: dict[int, Node | None] = {}
     hash_to_tree: dict[int, Node] = {}
@@ -126,10 +126,10 @@ def extract_lon(
     evaluations_to_hit = -1  # -1 means no hit found
     cumulative_evals = 0
     for r in search_results:
-        cumulative_evals += r.n_evaluations
-        if r.final_mse < 1e-9:
-            evaluations_to_hit = cumulative_evals
+        if r.evals_to_first_hit is not None:
+            evaluations_to_hit = cumulative_evals + r.evals_to_first_hit
             break
+        cumulative_evals += r.n_evaluations
 
     evals_str = str(evaluations_to_hit) if evaluations_to_hit >= 0 else "-"
     logger.info(

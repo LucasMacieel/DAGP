@@ -29,20 +29,47 @@ def _build_tree_from_exponents(
     var_names: list[str],
     var_units: list[UnitSig],
 ) -> Optional[Node]:
-    # Collect non-zero terms
-    terms: list[Node] = []
+    # Group variables into positive and negative exponents
+    pos_terms: list[Node] = []
+    neg_terms: list[Node] = []
+
     for i, (name, unit, exp) in enumerate(zip(var_names, var_units, exponents)):
-        if exp != 0:
-            terms.append(Node.variable(name, i, exp, unit))
+        if exp > 0:
+            var_node = Node.variable(name, i, 1, unit)
+            for _ in range(exp):
+                pos_terms.append(var_node.copy())
+        elif exp < 0:
+            var_node = Node.variable(name, i, 1, unit)
+            for _ in range(-exp):
+                neg_terms.append(var_node.copy())
 
-    if not terms:
-        return None  # All zero exponents = constant 1 = not useful
+    if not pos_terms and not neg_terms:
+        return None
 
-    # Chain terms with multiplication
-    tree = terms[0]
-    for t in terms[1:]:
-        tree = Node.operator(Op.MUL, tree, t)
-    return tree
+    # Build positive tree: chain with multiplication
+    if pos_terms:
+        pos_tree = pos_terms[0]
+        for t in pos_terms[1:]:
+            pos_tree = Node.operator(Op.MUL, pos_tree, t)
+    else:
+        pos_tree = None
+
+    # Build negative tree: chain with multiplication
+    if neg_terms:
+        neg_tree = neg_terms[0]
+        for t in neg_terms[1:]:
+            neg_tree = Node.operator(Op.MUL, neg_tree, t)
+    else:
+        neg_tree = None
+
+    # Combine pos_tree and neg_tree
+    if pos_tree and neg_tree:
+        return Node.operator(Op.DIV, pos_tree, neg_tree)
+    elif pos_tree:
+        return pos_tree
+    else:
+        # neg_tree only: 1 / neg_tree
+        return Node.operator(Op.DIV, Node.constant(1), neg_tree)
 
 
 def generate_initial_solutions(

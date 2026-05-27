@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import functools
 import math
 import random
 from dataclasses import dataclass
@@ -10,7 +9,7 @@ from dataclasses import dataclass
 import numpy as np
 from tqdm import tqdm
 
-from deap import algorithms, base, creator, gp, tools
+from deap import base, creator, gp, tools
 
 
 @dataclass
@@ -113,9 +112,8 @@ def run_gp_baseline(
         idx1 = random.randint(1, len(ind1) - 1)
         slice1 = ind1.searchSubtree(idx1)
         size1 = slice1.stop - slice1.start
-        
-        best_idx2 = 1
-        best_diff = float('inf')
+
+        best_diff = float("inf")
         best_slice2 = ind2.searchSubtree(1)
         for i in range(1, len(ind2)):
             s2 = ind2.searchSubtree(i)
@@ -126,8 +124,8 @@ def run_gp_baseline(
                 if diff == 0:
                     break
         slice2 = best_slice2
-        new_ind1 = ind1[:slice1.start] + ind2[slice2] + ind1[slice1.stop:]
-        new_ind2 = ind2[:slice2.start] + ind1[slice1] + ind2[slice2.stop:]
+        new_ind1 = ind1[: slice1.start] + ind2[slice2] + ind1[slice1.stop :]
+        new_ind2 = ind2[: slice2.start] + ind1[slice1] + ind2[slice2.stop :]
         return ind1.__class__(new_ind1), ind2.__class__(new_ind2)
 
     def cxContextPreserved(ind1, ind2):
@@ -139,17 +137,19 @@ def run_gp_baseline(
                 for _ in range(node1.arity):
                     yield from _common_region(c1, c2)
                     c1, c2 = ind1.searchSubtree(c1).stop, ind2.searchSubtree(c2).stop
+
         common_pairs = list(_common_region(0, 0))
         if len(common_pairs) <= 1:
             return gp.cxOnePoint(ind1, ind2)
         idx1, idx2 = random.choice(common_pairs[1:])
         slice1, slice2 = ind1.searchSubtree(idx1), ind2.searchSubtree(idx2)
-        new_ind1 = ind1[:slice1.start] + ind2[slice2] + ind1[slice1.stop:]
-        new_ind2 = ind2[:slice2.start] + ind1[slice1] + ind2[slice2.stop:]
+        new_ind1 = ind1[: slice1.start] + ind2[slice2] + ind1[slice1.stop :]
+        new_ind2 = ind2[: slice2.start] + ind1[slice1] + ind2[slice2.stop :]
         return ind1.__class__(new_ind1), ind2.__class__(new_ind2)
 
     def cxGPUniform(ind1, ind2):
         """Poli and Langdon's Uniform Crossover for GP trees."""
+
         def get_child_indices(tree, idx):
             arity = tree[idx].arity
             children = []
@@ -163,7 +163,7 @@ def run_gp_baseline(
         def align_and_cross(idx1, idx2):
             node1 = ind1[idx1]
             node2 = ind2[idx2]
-            
+
             # If both are primitives and have the same arity, they are in the common region
             if node1.arity > 0 and node1.arity == node2.arity:
                 # Swap primitives with 50% probability
@@ -171,27 +171,27 @@ def run_gp_baseline(
                     n1, n2 = node2, node1
                 else:
                     n1, n2 = node1, node2
-                    
+
                 children1 = get_child_indices(ind1, idx1)
                 children2 = get_child_indices(ind2, idx2)
-                
+
                 off1_parts = [n1]
                 off2_parts = [n2]
-                
+
                 for (c1_start, c1_end), (c2_start, c2_end) in zip(children1, children2):
                     o1_sub, o2_sub = align_and_cross(c1_start, c2_start)
                     off1_parts.extend(o1_sub)
                     off2_parts.extend(o2_sub)
-                    
+
                 return off1_parts, off2_parts
             else:
                 # Boundary of common region: swap entire subtrees with 50% probability
                 slice1 = ind1.searchSubtree(idx1)
                 slice2 = ind2.searchSubtree(idx2)
-                
+
                 subtree1 = ind1[slice1]
                 subtree2 = ind2[slice2]
-                
+
                 if random.random() < 0.5:
                     return list(subtree2), list(subtree1)
                 else:
@@ -203,7 +203,9 @@ def run_gp_baseline(
         return ind1, ind2
 
     def mate_random(ind1, ind2):
-        op = random.choice(["subtree", "one_point", "size_fair", "uniform", "context_preserved"])
+        op = random.choice(
+            ["subtree", "one_point", "size_fair", "uniform", "context_preserved"]
+        )
         if op == "subtree":
             return gp.cxOnePoint(ind1, ind2)
         elif op == "one_point":
@@ -220,17 +222,17 @@ def run_gp_baseline(
     # Custom mutation operators
     def mutHoist(individual):
         if len(individual) < 3:
-            return individual,
+            return (individual,)
         idx = random.randint(1, len(individual) - 1)
         slice_ = individual.searchSubtree(idx)
-        return individual.__class__(individual[slice_]),
-        
+        return (individual.__class__(individual[slice_]),)
+
     def mutPermutation(individual):
         if len(individual) < 2:
-            return individual,
+            return (individual,)
         primitives = [i for i, node in enumerate(individual) if node.arity > 1]
         if not primitives:
-            return individual,
+            return (individual,)
         idx = random.choice(primitives)
         node = individual[idx]
         slices = []
@@ -241,14 +243,16 @@ def run_gp_baseline(
             child_idx = s.stop
         children = [individual[s] for s in slices]
         random.shuffle(children)
-        new_tree = individual[:idx+1]
+        new_tree = individual[: idx + 1]
         for c in children:
             new_tree.extend(c)
-        new_tree.extend(individual[slices[-1].stop:])
-        return individual.__class__(new_tree),
+        new_tree.extend(individual[slices[-1].stop :])
+        return (individual.__class__(new_tree),)
 
     def mut_random(individual):
-        op = random.choice(["subtree", "hoist", "node_replace", "permutation", "shrink"])
+        op = random.choice(
+            ["subtree", "hoist", "node_replace", "permutation", "shrink"]
+        )
         if op == "subtree":
             return gp.mutUniform(individual, expr=toolbox.expr_mut, pset=pset)
         elif op == "hoist":
@@ -299,8 +303,7 @@ def run_gp_baseline(
             if stats:
                 stats.compile(pop)
 
-            while (run_evals < max_evals
-                   and hof[0].fitness.values[0] >= hit_threshold):
+            while run_evals < max_evals and hof[0].fitness.values[0] >= hit_threshold:
                 # 1. Select k = 3 individuals at random
                 indices = random.sample(range(len(pop)), 3)
                 # Sort indices by the MSE (raw fitness value) in ascending order.
@@ -317,7 +320,7 @@ def run_gp_baseline(
 
                 # 3. Mutate the offspring with probability mut_prob (0.5)
                 if random.random() < mut_prob:
-                    offspring, = toolbox.mutate(offspring)
+                    (offspring,) = toolbox.mutate(offspring)
 
                 # 4. Evaluate the offspring (exactly 1 evaluation)
                 offspring.fitness.values = toolbox.evaluate(offspring)

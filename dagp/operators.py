@@ -30,19 +30,45 @@ def _generate_subtrees_with_sig(
         for exp, unit in zip(exponents, var_units):
             sig = mul_sig(sig, pow_sig(unit, exp))
         if sig == target_sig:
-            # Build subtree with only non-zero exponents
-            terms = []
+            # Build subtree using only multiplication/division and exponent=1
+            pos_terms = []
+            neg_terms = []
             for i, (name, unit, exp) in enumerate(zip(var_names, var_units, exponents)):
-                if exp != 0:
-                    terms.append(Node.variable(name, i, exp, unit))
-            if not terms:
-                # All-zero = constant 1 (dimensionless)
+                if exp > 0:
+                    var_node = Node.variable(name, i, 1, unit)
+                    for _ in range(exp):
+                        pos_terms.append(var_node.copy())
+                elif exp < 0:
+                    var_node = Node.variable(name, i, 1, unit)
+                    for _ in range(-exp):
+                        neg_terms.append(var_node.copy())
+
+            if not pos_terms and not neg_terms:
                 if target_sig == DIMENSIONLESS:
                     results.append(Node.constant(1))
                 continue
-            tree = terms[0]
-            for t in terms[1:]:
-                tree = Node.operator(Op.MUL, tree, t)
+
+            if pos_terms:
+                pos_tree = pos_terms[0]
+                for t in pos_terms[1:]:
+                    pos_tree = Node.operator(Op.MUL, pos_tree, t)
+            else:
+                pos_tree = None
+
+            if neg_terms:
+                neg_tree = neg_terms[0]
+                for t in neg_terms[1:]:
+                    neg_tree = Node.operator(Op.MUL, neg_tree, t)
+            else:
+                neg_tree = None
+
+            if pos_tree and neg_tree:
+                tree = Node.operator(Op.DIV, pos_tree, neg_tree)
+            elif pos_tree:
+                tree = pos_tree
+            else:
+                tree = Node.operator(Op.DIV, Node.constant(1), neg_tree)
+
             results.append(tree)
 
     _SUBTREE_CACHE[cache_key] = results
@@ -64,16 +90,18 @@ def generate_all_neighbours(
 
         # --- Operator 1: Replacement ---
         # Replace subtree with another one having the same signature
-        replacements = _generate_subtrees_with_sig(st_sig, var_names, var_units)
-        for repl in replacements:
-            if repl.tree_hash() == subtree.tree_hash():
-                continue  # skip identity
-            new_size = tree_size - st_size + repl.size()
-            if new_size > MAX_TREE_SIZE:
-                continue
-            new_tree = _replace_subtree(tree, subtree, repl)
-            if new_tree is not None:
-                neighbours.append(new_tree)
+        # Restrict to proper subtrees (excluding the entire root tree) to maintain locality
+        if st_idx != 0:
+            replacements = _generate_subtrees_with_sig(st_sig, var_names, var_units)
+            for repl in replacements:
+                if repl.tree_hash() == subtree.tree_hash():
+                    continue  # skip identity
+                new_size = tree_size - st_size + repl.size()
+                if new_size > MAX_TREE_SIZE:
+                    continue
+                new_tree = _replace_subtree(tree, subtree, repl)
+                if new_tree is not None:
+                    neighbours.append(new_tree)
 
         # --- Operator 2: Multiply by integer ---
         for k in range(-3, 4):

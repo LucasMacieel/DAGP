@@ -36,9 +36,7 @@ _UNIT_TABLE: dict[str, UnitSig] = _load_unit_table()
 def _get_unit(name: str) -> UnitSig:
     """Look up a variable's unit signature."""
     if name not in _UNIT_TABLE:
-        raise KeyError(
-            f"Unknown variable '{name}' — add it to dagp/units.csv"
-        )
+        raise KeyError(f"Unknown variable '{name}' — add it to dagp/units.csv")
     return _UNIT_TABLE[name]
 
 

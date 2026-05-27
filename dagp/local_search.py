@@ -21,6 +21,9 @@ class LocalSearchResult:
     steps: int  # number of improvement steps taken
     n_evaluations: int  # number of fitness evaluations performed
     trajectory: list[int]  # tree hashes visited (for LON edges)
+    evals_to_first_hit: int | None = (
+        None  # evaluations performed up to first hit (MSE < 1e-9)
+    )
 
 
 def greedy_local_search(
@@ -37,6 +40,7 @@ def greedy_local_search(
 
     s = initial.copy()
     n_evals = 0
+    evals_to_first_hit = None
 
     current_hash = s.tree_hash()
     if eval_cache is not None and current_hash in eval_cache:
@@ -51,32 +55,28 @@ def greedy_local_search(
 
     n_evals += 1
 
+    if current_mse < 1e-9:
+        evals_to_first_hit = n_evals
+
     initial_mse = current_mse
     trajectory = [current_hash]
     if hash_to_tree is not None:
         hash_to_tree[current_hash] = s.copy()
     steps = 0
 
-    if current_mse < 1e-9:
-        return LocalSearchResult(
-            initial_tree=initial,
-            final_tree=s,
-            initial_mse=initial_mse,
-            final_mse=current_mse,
-            steps=steps,
-            n_evaluations=n_evals,
-            trajectory=trajectory,
-        )
-
     while True:
         current_hash = s.tree_hash()
+
+        # Check if the current state is a hit
+        if current_mse < 1e-9 and evals_to_first_hit is None:
+            evals_to_first_hit = n_evals
 
         # 1. Check if we already know the optimal path from this node
         if step_cache is not None and current_hash in step_cache:
             best_neighbour = step_cache[current_hash]
             if best_neighbour is None:
                 break  # previously determined to be a local optimum
-            
+
             s = best_neighbour.copy()
             best_hash = s.tree_hash()
             current_mse = eval_cache[best_hash]
@@ -107,18 +107,10 @@ def greedy_local_search(
 
             n_evals += 1
 
-            if nb_mse < 1e-9:
+            if nb_mse < 1e-9 and evals_to_first_hit is None:
+                evals_to_first_hit = n_evals
                 if hash_to_tree is not None:
                     hash_to_tree[nb_hash] = nb.copy()
-                return LocalSearchResult(
-                    initial_tree=initial,
-                    final_tree=nb,
-                    initial_mse=initial_mse,
-                    final_mse=nb_mse,
-                    steps=steps + 1,
-                    n_evaluations=n_evals,
-                    trajectory=trajectory + [nb_hash],
-                )
 
             if nb_mse < best_mse:
                 best_mse = nb_mse
@@ -149,6 +141,7 @@ def greedy_local_search(
         steps=steps,
         n_evaluations=n_evals,
         trajectory=trajectory,
+        evals_to_first_hit=evals_to_first_hit,
     )
 
     return res
