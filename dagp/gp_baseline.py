@@ -148,59 +148,86 @@ def run_gp_baseline(
         new_ind2 = ind2[:slice2.start] + ind1[slice1] + ind2[slice2.stop:]
         return ind1.__class__(new_ind1), ind2.__class__(new_ind2)
 
-    def cxGPUniform(ind1, ind2):
-        """Poli and Langdon's Uniform Crossover for GP trees."""
-        def get_child_indices(tree, idx):
-            arity = tree[idx].arity
-            children = []
-            curr = idx + 1
-            for _ in range(arity):
-                sub_slice = tree.searchSubtree(curr)
-                children.append((curr, sub_slice.stop))
-                curr = sub_slice.stop
-            return children
+    def cxGPUniform(ind1, ind2, swap_prob=0.5):
+        """Standard tree-based uniform crossover following the user's recursive logic."""
+        class TempNode:
+            def __init__(self, value=None):
+                self.value = value
+                self.children = []
 
-        def align_and_cross(idx1, idx2):
-            node1 = ind1[idx1]
-            node2 = ind2[idx2]
-            
-            # If both are primitives and have the same arity, they are in the common region
-            if node1.arity > 0 and node1.arity == node2.arity:
-                # Swap primitives with 50% probability
-                if random.random() < 0.5:
-                    n1, n2 = node2, node1
-                else:
-                    n1, n2 = node1, node2
-                    
-                children1 = get_child_indices(ind1, idx1)
-                children2 = get_child_indices(ind2, idx2)
-                
-                off1_parts = [n1]
-                off2_parts = [n2]
-                
-                for (c1_start, c1_end), (c2_start, c2_end) in zip(children1, children2):
-                    o1_sub, o2_sub = align_and_cross(c1_start, c2_start)
-                    off1_parts.extend(o1_sub)
-                    off2_parts.extend(o2_sub)
-                    
-                return off1_parts, off2_parts
+        def prefix_to_tree(flat_list):
+            iterator = iter(flat_list)
+            def parse():
+                node = next(iterator)
+                temp = TempNode(node)
+                for _ in range(node.arity):
+                    temp.children.append(parse())
+                return temp
+            return parse()
+
+        def tree_to_prefix(root):
+            flat = []
+            def serialize(node):
+                if node is None:
+                    return
+                flat.append(node.value)
+                for child in node.children:
+                    serialize(child)
+            serialize(root)
+            return flat
+
+        def uniform_crossover(node_a, node_b):
+            if node_a is None and node_b is None:
+                return None, None
+
+            # Structural mismatch → subtree swap fallback
+            if node_a is None or node_b is None:
+                return node_b, node_a
+
+            offspring1 = TempNode()
+            offspring2 = TempNode()
+
+            if random.random() < swap_prob:
+                offspring1.value = node_b.value
+                offspring2.value = node_a.value
             else:
-                # Boundary of common region: swap entire subtrees with 50% probability
-                slice1 = ind1.searchSubtree(idx1)
-                slice2 = ind2.searchSubtree(idx2)
-                
-                subtree1 = ind1[slice1]
-                subtree2 = ind2[slice2]
-                
-                if random.random() < 0.5:
-                    return list(subtree2), list(subtree1)
-                else:
-                    return list(subtree1), list(subtree2)
+                offspring1.value = node_a.value
+                offspring2.value = node_b.value
 
-        off1_nodes, off2_nodes = align_and_cross(0, 0)
-        ind1[:] = off1_nodes
-        ind2[:] = off2_nodes
+            arity_a = len(node_a.children)
+            arity_b = len(node_b.children)
+            
+            arity1 = offspring1.value.arity
+            arity2 = offspring2.value.arity
+
+            for i in range(max(arity1, arity2)):
+                child_a = node_a.children[i] if i < arity_a else None
+                child_b = node_b.children[i] if i < arity_b else None
+
+                c1, c2 = uniform_crossover(child_a, child_b)
+                if i < arity1:
+                    offspring1.children.append(c1 if c1 is not None else c2)
+                if i < arity2:
+                    offspring2.children.append(c2 if c2 is not None else c1)
+
+            return offspring1, offspring2
+
+        # Convert prefix list to recursive tree representation
+        tree_a = prefix_to_tree(ind1)
+        tree_b = prefix_to_tree(ind2)
+
+        # Perform the uniform crossover
+        off1_tree, off2_tree = uniform_crossover(tree_a, tree_b)
+
+        # Convert back to prefix list
+        off1_flat = tree_to_prefix(off1_tree)
+        off2_flat = tree_to_prefix(off2_tree)
+
+        # Update in-place
+        ind1[:] = off1_flat
+        ind2[:] = off2_flat
         return ind1, ind2
+
 
     def mate_random(ind1, ind2):
         op = random.choice(["subtree", "one_point", "size_fair", "uniform", "context_preserved"])
