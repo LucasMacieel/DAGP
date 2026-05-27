@@ -8,7 +8,6 @@ dependencies = [
     "numpy",
     "networkx",
     "matplotlib",
-    "scipy",
     "deap",
     "tqdm",
 ]
