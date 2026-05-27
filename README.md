@@ -1,96 +1,142 @@
 # DAGP — Dimensionally-Aware Genetic Programming
 
-Implementation of experiments from:
+Implementation of experiments and comparison baseline from:
 
 > Durasevic et al., *Fitness Landscape Analysis of Dimensionally-Aware Genetic Programming Featuring Feynman Equations* ([arXiv:2004.12762](https://arxiv.org/abs/2004.12762))
 
 ## Overview
 
-A dimensionally-constrained greedy local search applied to 27 Feynman physics equations. The search uses physical unit constraints to prune the expression space, extracts **Local Optima Networks (LONs)**, and computes graph-theoretic fitness landscape metrics.
+A dimensionally-constrained greedy local search applied to physical equations. The search uses physical unit signatures to prune the expression search space, extracts **Local Optima Networks (LONs)** to model the fitness landscape, and computes graph-theoretic metrics. A highly optimized, custom Genetic Programming (GP) baseline is provided as a comparison.
+
+---
 
 ## Architecture
 
+The project is structured modularly under the `dagp/` package:
+
 ```
 dagp/
-├── units.py           # UnitSig (5-tuple: m,s,kg,K,V) + arithmetic (Table 2)
-├── equations.py       # 27 Feynman equations with variable metadata & unit signatures
-├── expression.py      # Expression tree: eval, MSE, linear scaling (OLS), hashing
-├── initialization.py  # §3.2 — enumerate monomial expressions matching target signature
-├── operators.py       # §3.3 — 5 dimension-preserving neighbourhood operators
-├── local_search.py    # §3.4 — Algorithm 1: greedy best-improvement local search
-├── lon.py             # LON extraction: local search from all inits + edge building
-├── metrics.py         # Graph metrics: nv, ne, C, Cr, l, π, S, nhits (Table 5)
-├── visualize.py       # LON network plots (Figs 1-3) + violin plots (Fig 4)
-├── gp_baseline.py     # Standard GP baseline using DEAP (§3.5, Table 3)
-└── units.csv          # Physical unit signatures for all Feynman variables
-run_experiments.py     # Main entry point
+├── units.py           # UnitSig NamedTuple (m, s, kg, K, V) & commensurate arithmetic (Table 2)
+├── equations.py       # Feynman equations registry (e.g., I.12.5, I.12.1, I.14.3) with target units
+├── expression.py      # Expression tree nodes, batch evaluations, MSE/OLS linear scaling, hashing
+├── initialization.py  # §3.2 — Monomial enumeration matching target unit signatures
+├── operators.py       # §3.3 — 5 dimension-preserving neighborhood operators
+├── local_search.py    # §3.4 — Algorithm 1: greedy best-improvement search with caching
+├── lon.py             # Basin-to-basin LON edge construction and extraction
+├── metrics.py         # Table 5 graph metrics (clustering, component size, average path length)
+├── visualize.py       # Side-by-side LON network comparison and violin plots
+├── gp_baseline.py     # Custom steady-state DEAP GP symbolic regression (§3.5, Table 3)
+└── units.csv          # Base SI unit database for Feynman variables
+run_experiments.py     # Central CLI experiment runner
 ```
 
-### Unit System
+---
 
-Unit signatures are 5-tuples `(m, s, kg, K, V)` representing exponents of base SI dimensions. Arithmetic follows Table 2:
+## Core Components
 
-- **Multiplication**: exponents add → `[v+v', w+w', ...]`
-- **Division**: exponents subtract → `[v-v', w-w', ...]`
-- **Addition/Subtraction**: requires commensurate (equal) signatures
+### 1. Physical Unit System
+Unit signatures are represented as 5-tuples `(m, s, kg, K, V)` representing the integer exponents of base SI dimensions (length, time, mass, temperature, electric voltage). 
+Arithmetic rules strictly follow physical dimensional analysis (Table 2 of the paper):
+* **Multiplication**: Exponents sum.
+* **Division**: Exponents subtract.
+* **Addition / Subtraction**: Commensurate constraint (requires identical unit signatures).
 
-### Initialization (§3.2)
+### 2. Initialization & Structural Bloat Prevention
+Valid initial solutions are generated as monomials $x_1^{a_1} \cdot x_2^{a_2} \cdots x_p^{a_p}$ within an exponent range of $a_i \in [-3, 3]$. 
+* **Bloat Prevention**: Any variable with an exponent of `0` is completely filtered out during tree compilation, preventing structural bloat (such as multiplying by $x^0$) and ensuring compact, high-quality starting trees.
 
-Enumerates all monomial expressions `x1^a1 * x2^a2 * ... * xp^ap` where `a_i ∈ [-3, 3]`, keeping only combinations whose resulting unit signature matches the target.
+### 3. Dimension-Preserving Neighborhood Operators
+To navigate the landscape without violating physical unit consistency, five operators are applied to every subtree in the expression:
+1. **Replacement**: Swaps a subtree with a commensurate monomial subtree.
+2. **Multiply by Integer**: Wraps a subtree with `(* k)` where $k \in [-3, 3] \setminus \{0, 1\}$.
+3. **Divide by Integer**: Wraps a subtree with `(/ k)` where $k \in [-3, 3] \setminus \{0, 1\}$.
+4. **Add Commensurate**: Wraps a subtree with `(+ q)` where $\text{sig}(q) = \text{sig}(\text{subtree})$.
+5. **Subtract Commensurate**: Wraps a subtree with `(- q)` where $\text{sig}(q) = \text{sig}(\text{subtree})$.
 
-### Neighbourhood Operators (§3.3)
+*Identity pruning is enforced by excluding $k = 0, 1$ in multipliers/dividers. Expression trees are capped at a maximum size of `MAX_TREE_SIZE = 42` nodes.*
 
-Five dimension-preserving operators applied to every subtree:
+### 4. Greedy Best-Improvement Local Search
+Deterministic local search (Algorithm 1) traverses the neighborhood, selecting the single best strict improvement in Mean Squared Error (MSE). Caching of intermediate evaluation outcomes and transition paths is utilized to accelerate execution.
+* **Linear Scaling**: Optionally uses Ordinary Least Squares (OLS) linear scaling ($a + b \cdot T$) to scale predictions.
 
-1. **Replacement** — swap subtree with one of matching signature
-2. **Multiply by integer** — wrap with `(* k)`, `k ∈ [-3,3]\{0,1}`
-3. **Divide by integer** — wrap with `(/ k)`
-4. **Add commensurate** — wrap with `(+ q)` where `sig(q) == sig(subtree)`
-5. **Subtract commensurate** — wrap with `(- q)`
+### 5. Local Optima Networks (LON) & Basin Connection Logic
+LONs are built by running the greedy local search from **every** valid initial solution.
+* **Basin-to-Basin Connection**: Directed transitions between basins are mapped. If a single-step neighborhood operator applied to any expression in basin $A$ results in a tree that resolves to local optimum $B$ under greedy search, an undirected edge is established between $A$ and $B$, weighted by transition frequencies.
 
-### Local Search (§3.4, Algorithm 1)
+### 6. Graph-Theoretic Metrics
+Graph analysis is performed on the undirected view of the network (aligning with Table 5 of the paper):
+* `nv`: Number of vertices (discovered local optima).
+* `ne`: Number of edges.
+* `C`: Global average clustering coefficient.
+* `Cr`: Clustering coefficient of an equivalent random graph.
+* `l`: Average shortest path length (returns `-1.0` if the network is disconnected).
+* `π` (pi): Connectivity indicator: `1` if the graph has exactly one connected component ($S = 1$), `0` otherwise.
+* `S`: Number of connected components.
+* `nhits`: Count of distinct local optima qualifying as successful hits ($\text{MSE} < 10^{-9}$).
 
-Deterministic best-improvement search. Evaluates entire neighbourhood, accepts the single best strict improvement. Fitness = MSE (with optional linear scaling `a + b*T` via OLS). Max tree size: 42 nodes.
+---
 
-### LON Extraction
+## Genetic Programming (GP) Comparison Baseline
 
-1. Run local search from **every** initial solution → discover local optima
-2. For each local optimum, generate its neighbourhood, run local search → build directed edges between optima
+The baseline uses a highly customized steady-state Symbolic Regression engine built on `DEAP`:
 
-### Graph Metrics (Table 5)
+* **Steady-State Evolution (MGG)**: A tournament-based evolutionary scheme. Three individuals are randomly chosen; the worst is replaced by the mutated offspring of the top two. Early stopping is triggered once any individual achieves a hit ($\text{MSE} < 10^{-9}$).
+* **Parameters**: Population size: `500` | Max fitness evaluations: `100,000` | Max tree depth: `6` | Mutation probability: `0.5`.
+* **Crossover Operators**:
+  * **Subtree Crossover**: Standard DEAP subtree swapping.
+  * **Leaf-Biased Crossover**: Subtree swapping with a 10% terminal selection bias.
+  * **Size-Fair Crossover**: Swaps subtrees of similar sizes to curb code bloat.
+  * **Context-Preserved Crossover**: Swaps subtrees that occupy identical structural locations.
+  * **GP Uniform Crossover (Poli & Langdon)**: Swaps nodes in the common parent region or subtrees on the structural boundaries.
+* **Mutation Operators**: Subtree, Hoist, Node Replacement, Permutation, and Shrink.
 
-| Metric | Description |
-|--------|-------------|
-| `nv` | Number of vertices (local optima) |
-| `ne` | Number of edges |
-| `C` | Global clustering coefficient |
-| `Cr` | Clustering of equivalent random graph |
-| `l` | Average shortest path length (-1 if disconnected) |
-| `π` | Fraction in largest connected component |
-| `S` | Number of connected components |
-| `nhits` | Initial solutions reaching the global optimum |
+---
 
 ## Usage
 
+Set up the environment with `uv` and install the package in editable mode:
+
 ```bash
-uv venv && source .venv/bin/activate
+# Set up virtual environment
+uv venv
+source .venv/bin/activate
+
+# Install dependencies and the local package
 uv pip install -e .
-
-# Run 5-equation subset (default)
-python run_experiments.py
-
-# Run all 27 equations
-python run_experiments.py --all
-
-# With GP baseline
-python run_experiments.py --gp
-
-# Custom sample size
-python run_experiments.py --n-samples 200
 ```
 
-Results are saved to `results/` (LON plots, violin plots, Table 5 metrics).
+### Running Experiments
+
+Run the experiment suite (which defaults to equations `I.12.5`, `I.12.1`, `I.14.3`):
+
+```bash
+# Run the core local search & LON extraction pipeline
+python run_experiments.py
+
+# Run the pipeline including the standard GP comparison baseline
+python run_experiments.py --gp
+
+# Customize the number of sample data points
+python run_experiments.py --n-samples 200 --gp
+```
+
+### Options
+
+* `--gp`: Run GP baseline comparison runs (50 independent runs per equation).
+* `--n-samples`: Number of data rows sampled from data files (default: `100`).
+* `--data-dir`: Custom path to the Feynman database (default: `Feynman_with_units`).
+* `--output-dir`: Output directory for files (default: `results`).
+
+### Outputs
+
+All results are output directly to `results/`:
+* `table4_evaluations.txt`: Evaluations to hit for both local search and GP.
+* `table5_metrics.txt`: Extracted graph metrics for no-scaling and linear-scaling variants.
+* `lon_*.png`: Side-by-side graph plots showing the extracted Local Optima Networks.
+* `violin_plots.png`: Violin distributions of the landscape metrics.
+
+---
 
 ## Data
 
-Uses the [Feynman Symbolic Regression Database](https://space.mit.edu/home/tegmark/aifeynman.html). Place `Feynman_with_units/` directory in the project root.
+The pipeline runs on data from the [Feynman Symbolic Regression Database](https://space.mit.edu/home/tegmark/aifeynman.html). Place the `Feynman_with_units/` directory inside the project root before running the script.
