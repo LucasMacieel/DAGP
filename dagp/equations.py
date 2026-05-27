@@ -113,16 +113,117 @@ _reg(
     )
 )
 
-# I.14.4: U = 0.5 * k_spring * x**2
+# I.29.4: k = omega / c
 _reg(
     FeynmanEquation(
-        id="I.14.4",
-        formula="0.5 * k_spring * x**2",
-        var_names=["k_spring", "x"],
-        target_unit=_get_unit("U"),
-        func=lambda k_spring, x: 0.5 * k_spring * x**2,
+        id="I.29.4",
+        formula="omega / c",
+        var_names=["omega", "c"],
+        target_unit=_get_unit("k"),
+        func=lambda omega, c: omega / c,
     )
 )
 
-# "I.24.6", "I.14.4"
-EXPERIMENTS = ["I.12.5", "I.12.1", "I.14.3"]
+# I.34.8: omega = q * v * B / p
+_reg(
+    FeynmanEquation(
+        id="I.34.8",
+        formula="q * v * B / p",
+        var_names=["q", "v", "B", "p"],
+        target_unit=_get_unit("omega"),
+        func=lambda q, v, B, p: q * v * B / p,
+    )
+)
+
+# I.39.1: En = 1.5 * pr * V
+_reg(
+    FeynmanEquation(
+        id="I.39.1",
+        formula="1.5 * pr * V",
+        var_names=["pr", "V"],
+        target_unit=_get_unit("E_n"),
+        func=lambda pr, V: 1.5 * pr * V,
+    )
+)
+
+# I.25.13: Ve = q / C
+_reg(
+    FeynmanEquation(
+        id="I.25.13",
+        formula="q / C",
+        var_names=["q", "C"],
+        target_unit=_get_unit("Volt"),
+        func=lambda q, C: q / C,
+    )
+)
+
+# I.43.16: v = mob * q * Volt / d
+_reg(
+    FeynmanEquation(
+        id="I.43.16",
+        formula="mob * q * Volt / d",
+        var_names=["mob", "q", "Volt", "d"],
+        target_unit=_get_unit("v"),
+        func=lambda mob, q, Volt, d: mob * q * Volt / d,
+    )
+)
+
+# I.43.31: D = mob * kb * T
+_reg(
+    FeynmanEquation(
+        id="I.43.31",
+        formula="mob * kb * T",
+        var_names=["mob", "kb", "T"],
+        target_unit=_get_unit("D"),
+        func=lambda mob, kb, T: mob * kb * T,
+    )
+)
+
+# II.8.31: Eden = 0.5 * epsilon * Ef**2
+_reg(
+    FeynmanEquation(
+        id="II.8.31",
+        formula="0.5 * epsilon * Ef**2",
+        var_names=["epsilon", "Ef"],
+        target_unit=_get_unit("E_den"),
+        func=lambda epsilon, Ef: 0.5 * epsilon * Ef**2,
+    )
+)
+
+# II.34.2: muM = 0.5 * q * v * r
+_reg(
+    FeynmanEquation(
+        id="II.34.2",
+        formula="0.5 * q * v * r",
+        var_names=["q", "v", "r"],
+        target_unit=_get_unit("mom"),
+        func=lambda q, v, r: 0.5 * q * v * r,
+    )
+)
+
+# III.15.14: m = hbar**2 / (2 * E_n * d**2)
+_reg(
+    FeynmanEquation(
+        id="III.15.14",
+        formula="hbar**2 / (2 * E_n * d**2)",
+        var_names=["hbar", "E_n", "d"],
+        target_unit=_get_unit("m"),
+        func=lambda hbar, E_n, d: hbar**2 / (2 * E_n * d**2),
+    )
+)
+
+EXPERIMENTS = [
+    "I.12.5",
+    "I.12.1",
+    "I.14.3",
+    "I.24.6",
+    "I.29.4",
+    "I.34.8",
+    "I.39.1",
+    "I.25.13",
+    "I.43.16",
+    "I.43.31",
+    "II.8.31",
+    "II.34.2",
+    "III.15.14",
+]

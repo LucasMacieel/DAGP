@@ -125,7 +125,7 @@ class Node:
             return lv * rv
         elif self.op == Op.DIV:
             if abs(rv) < 1e-30:
-                return float("inf")
+                return np.inf
             return lv / rv
 
     def evaluate_batch(self, data: np.ndarray) -> np.ndarray:
@@ -226,10 +226,10 @@ def compute_mse(tree: Node, data: np.ndarray, targets: np.ndarray) -> float:
     try:
         preds = tree.evaluate_batch(data)
         if not np.all(np.isfinite(preds)):
-            return float("inf")
+            return np.inf
         return float(np.mean((preds - targets) ** 2))
     except (OverflowError, FloatingPointError, ZeroDivisionError):
-        return float("inf")
+        return np.inf
 
 
 def compute_mse_linear_scaling(
@@ -239,7 +239,7 @@ def compute_mse_linear_scaling(
     try:
         preds = tree.evaluate_batch(data)
         if not np.all(np.isfinite(preds)):
-            return float("inf"), 0.0, 1.0
+            return np.inf, 0.0, 1.0
         # OLS: minimize sum (targets - a - b*preds)^2
         mean_p = np.mean(preds)
         mean_t = np.mean(targets)
@@ -255,4 +255,4 @@ def compute_mse_linear_scaling(
         mse = float(np.mean((scaled_preds - targets) ** 2))
         return mse, a, b
     except (OverflowError, FloatingPointError, ZeroDivisionError):
-        return float("inf"), 0.0, 1.0
+        return np.inf, 0.0, 1.0

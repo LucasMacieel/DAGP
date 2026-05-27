@@ -107,8 +107,6 @@ uv pip install -e .
 
 ### Running Experiments
 
-Run the experiment suite (which defaults to equations `I.12.5`, `I.12.1`, `I.14.3`):
-
 ```bash
 # Run the core local search & LON extraction pipeline
 python run_experiments.py

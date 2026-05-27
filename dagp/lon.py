@@ -115,7 +115,7 @@ def extract_lon(
         global_mse = local_optima_mse[global_hash]
     else:
         global_hash = 0
-        global_mse = float("inf")
+        global_mse = np.inf
 
     # Count hits: number of *distinct* local optima with MSE < 1e-9
     # (paper §4.2, Table 5: "nhits is the number of nodes which represent a hit")

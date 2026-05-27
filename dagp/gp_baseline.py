@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import math
 import random
 from dataclasses import dataclass
 
@@ -27,10 +26,11 @@ class GPResult:
 
 
 def _protected_div(a, b):
-    """Protected division to avoid ZeroDivisionError."""
-    if abs(b) < 1e-10:
-        return 1.0
-    return a / b
+    """Protected division to avoid ZeroDivisionError.
+    Works for both scalar and NumPy array inputs.
+    """
+    with np.errstate(divide="ignore", invalid="ignore"):
+        return np.where(np.abs(b) < 1e-10, 1.0, a / b)
 
 
 def run_gp_baseline(
@@ -60,8 +60,8 @@ def run_gp_baseline(
     pset.addPrimitive(lambda a, b: a - b, 2, name="sub")
     pset.addPrimitive(lambda a, b: a * b, 2, name="mul")
     pset.addPrimitive(_protected_div, 2, name="div")
-    pset.addPrimitive(math.sin, 1, name="sin")
-    pset.addPrimitive(math.cos, 1, name="cos")
+    pset.addPrimitive(np.sin, 1, name="sin")
+    pset.addPrimitive(np.cos, 1, name="cos")
 
     # Rename arguments to match variable names
     for i, name in enumerate(var_names):
@@ -77,30 +77,43 @@ def run_gp_baseline(
     toolbox.register("population", tools.initRepeat, list, toolbox.individual)
     toolbox.register("compile", gp.compile, pset=pset)
 
+    evaluation_cache = {}
+
     def eval_individual(individual) -> tuple[float]:
+        expr_str = str(individual)
+        if expr_str in evaluation_cache:
+            return evaluation_cache[expr_str]
+
         func = toolbox.compile(expr=individual)
         try:
-            preds = np.array([func(*row) for row in data])
+            # Vectorized evaluation: pass all data columns at once
+            preds = func(*[data[:, i] for i in range(data.shape[1])])
+            if not isinstance(preds, np.ndarray):
+                preds = np.full(len(targets), preds)
+
             if not np.all(np.isfinite(preds)):
-                return (float("inf"),)
-            if use_linear_scaling:
+                res = (np.inf,)
+            elif use_linear_scaling:
                 # Linear scaling
                 mean_p = np.mean(preds)
                 mean_t = np.mean(targets)
                 var_p = np.var(preds)
                 if var_p < 1e-30:
-                    return (float(np.mean((targets - mean_t) ** 2)),)
-                cov_pt = np.mean(preds * targets) - mean_p * mean_t
-                b = cov_pt / var_p
-                a = mean_t - b * mean_p
-                scaled = a + b * preds
-                mse = float(np.mean((scaled - targets) ** 2))
+                    res = (float(np.mean((targets - mean_t) ** 2)),)
+                else:
+                    cov_pt = np.mean(preds * targets) - mean_p * mean_t
+                    b = cov_pt / var_p
+                    a = mean_t - b * mean_p
+                    scaled = a + b * preds
+                    res = (float(np.mean((scaled - targets) ** 2)),)
             else:
                 # Direct MSE without scaling
-                mse = float(np.mean((preds - targets) ** 2))
-            return (mse,)
+                res = (float(np.mean((preds - targets) ** 2)),)
         except (OverflowError, FloatingPointError, ZeroDivisionError, ValueError):
-            return (float("inf"),)
+            res = (np.inf,)
+
+        evaluation_cache[expr_str] = res
+        return res
 
     toolbox.register("evaluate", eval_individual)
     toolbox.register("select", tools.selTournament, tournsize=3)
@@ -113,7 +126,7 @@ def run_gp_baseline(
         slice1 = ind1.searchSubtree(idx1)
         size1 = slice1.stop - slice1.start
 
-        best_diff = float("inf")
+        best_diff = np.inf
         best_slice2 = ind2.searchSubtree(1)
         for i in range(1, len(ind2)):
             s2 = ind2.searchSubtree(i)
@@ -334,7 +347,7 @@ def run_gp_baseline(
                 if stats:
                     stats.compile(pop)
         except Exception:
-            all_mse.append(float("inf"))
+            all_mse.append(np.inf)
             best_expressions.append("ERROR")
             evals_per_run.append(0)
             continue
