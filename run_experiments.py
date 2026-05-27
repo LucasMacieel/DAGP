@@ -122,8 +122,13 @@ def run_dagp_experiment(
     # --- Plot LON comparison ---
     plot_path = output_dir / f"lon_{equation.id.replace('.', '_')}.png"
     try:
-        plot_lon_comparison(lon_ns, lon_ls, equation.id, save_path=str(plot_path))
-        logger.info(f"  LON plot saved: {plot_path}")
+        ns_nodes = lon_ns.graph.number_of_nodes() if lon_ns is not None else 0
+        ls_nodes = lon_ls.graph.number_of_nodes() if lon_ls is not None else 0
+        if ns_nodes <= 1 and ls_nodes <= 1:
+            logger.info("  Skipping LON plot because both graphs have <= 1 node.")
+        else:
+            plot_lon_comparison(lon_ns, lon_ls, equation.id, save_path=str(plot_path))
+            logger.info(f"  LON plot saved: {plot_path}")
     except Exception as e:
         logger.warning(f"  Failed to save LON plot: {e}")
 
