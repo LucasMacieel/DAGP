@@ -69,6 +69,7 @@ def _build_tree_from_exponents(
         return pos_tree
     else:
         # neg_tree only: 1 / neg_tree
+        assert neg_tree is not None
         return Node.operator(Op.DIV, Node.constant(1), neg_tree)
 
 

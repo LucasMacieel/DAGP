@@ -23,7 +23,7 @@ class LONResult:
     """Results of LON extraction for a single equation."""
 
     equation_id: str
-    graph: nx.DiGraph
+    graph: nx.Graph
     local_optima: dict[int, Node]  # hash -> tree
     local_optima_mse: dict[int, float]  # hash -> MSE
     global_optimum_hash: int  # hash of best local optimum
@@ -111,7 +111,7 @@ def extract_lon(
 
     # Find global optimum
     if local_optima_mse:
-        global_hash = min(local_optima_mse, key=local_optima_mse.get)
+        global_hash = min(local_optima_mse, key=lambda k: local_optima_mse[k])
         global_mse = local_optima_mse[global_hash]
     else:
         global_hash = 0

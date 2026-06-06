@@ -19,8 +19,8 @@ def plot_lon(
     lon_result: LONResult,
     title: str = "",
     color: str = "steelblue",
-    ax: plt.Axes = None,
-    save_path: str = None,
+    ax: plt.Axes | None = None,
+    save_path: str | None = None,
 ) -> None:
     G = lon_result.graph
     if G.number_of_nodes() == 0:
@@ -76,16 +76,19 @@ def plot_lon(
     ax.set_axis_off()
 
     if save_path:
-        fig.tight_layout()
-        fig.savefig(save_path, dpi=150, bbox_inches="tight")
-        plt.close(fig)
+        from matplotlib.figure import Figure
+
+        if isinstance(fig, Figure):
+            fig.tight_layout()
+            fig.savefig(save_path, dpi=150, bbox_inches="tight")
+            plt.close(fig)
 
 
 def plot_lon_comparison(
     lon_no_scaling: LONResult,
     lon_linear_scaling: LONResult,
     equation_id: str,
-    save_path: str = None,
+    save_path: str | None = None,
 ) -> None:
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
 
@@ -116,7 +119,7 @@ def plot_lon_comparison(
 
 def plot_violin_metrics(
     all_metrics: dict[str, tuple[LONMetrics, LONMetrics]],
-    save_path: str = None,
+    save_path: str | None = None,
 ) -> None:
     metric_names = ["nv", "ne", "C", "Cr", "avg_path_len", "pi", "S", "nhits"]
     metric_labels = ["nv", "ne", "C", "Cr", "l", "π", "S", "nhits"]

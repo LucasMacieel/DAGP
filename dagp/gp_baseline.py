@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import random
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 from tqdm import tqdm
@@ -49,10 +50,11 @@ def run_gp_baseline(
     use_linear_scaling: bool = True,
 ) -> GPResult:
     # Clean up any previous DEAP creator definitions
-    if "FitnessMin" in creator.__dict__:
-        del creator.FitnessMin
-    if "Individual" in creator.__dict__:
-        del creator.Individual
+    creator_any: Any = creator
+    if "FitnessMin" in creator_any.__dict__:
+        del creator_any.FitnessMin
+    if "Individual" in creator_any.__dict__:
+        del creator_any.Individual
 
     # Define primitive set
     pset = gp.PrimitiveSet("MAIN", len(var_names))
@@ -68,12 +70,14 @@ def run_gp_baseline(
         pset.renameArguments(**{f"ARG{i}": name})
 
     # DEAP setup
-    creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
-    creator.create("Individual", gp.PrimitiveTree, fitness=creator.FitnessMin)
+    creator_any.create("FitnessMin", base.Fitness, weights=(-1.0,))
+    creator_any.create("Individual", gp.PrimitiveTree, fitness=creator_any.FitnessMin)
 
-    toolbox = base.Toolbox()
+    toolbox: Any = base.Toolbox()
     toolbox.register("expr", gp.genHalfAndHalf, pset=pset, min_=1, max_=3)
-    toolbox.register("individual", tools.initIterate, creator.Individual, toolbox.expr)
+    toolbox.register(
+        "individual", tools.initIterate, creator_any.Individual, toolbox.expr
+    )
     toolbox.register("population", tools.initRepeat, list, toolbox.individual)
     toolbox.register("compile", gp.compile, pset=pset)
 

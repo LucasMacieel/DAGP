@@ -69,6 +69,7 @@ class Node:
         n.left = left
         n.right = right
         # Compute unit signature
+        assert left.unit_sig is not None and right.unit_sig is not None
         if op == Op.MUL:
             n.unit_sig = mul_sig(left.unit_sig, right.unit_sig)
         elif op == Op.DIV:
@@ -97,24 +98,29 @@ class Node:
         """Count total nodes in this subtree."""
         if self.is_leaf():
             return 1
+        assert self.left is not None and self.right is not None
         return 1 + self.left.size() + self.right.size()
 
     def depth(self) -> int:
         """Maximum depth of this subtree."""
         if self.is_leaf():
             return 0
+        assert self.left is not None and self.right is not None
         return 1 + max(self.left.depth(), self.right.depth())
 
     def evaluate(self, row: np.ndarray) -> float:
         """Evaluate expression on a single data row."""
         if self.is_variable():
+            assert self.var_idx is not None
             val = row[self.var_idx]
             if self.exponent == 1:
-                return val
-            return val**self.exponent
+                return float(val)
+            return float(val**self.exponent)
         if self.is_constant():
+            assert self.const_val is not None
             return float(self.const_val)
         # Operator
+        assert self.left is not None and self.right is not None
         lv = self.left.evaluate(row)
         rv = self.right.evaluate(row)
         if self.op == Op.ADD:
@@ -127,17 +133,21 @@ class Node:
             if abs(rv) < 1e-30:
                 return np.inf
             return lv / rv
+        raise ValueError(f"Unknown operator: {self.op}")
 
     def evaluate_batch(self, data: np.ndarray) -> np.ndarray:
         """Evaluate expression on all rows. data shape: (n_samples, n_vars)."""
         if self.is_variable():
+            assert self.var_idx is not None
             col = data[:, self.var_idx]
             if self.exponent == 1:
                 return col.copy()
             with np.errstate(all="ignore"):
                 return np.power(col, self.exponent)
         if self.is_constant():
+            assert self.const_val is not None
             return np.full(data.shape[0], float(self.const_val))
+        assert self.left is not None and self.right is not None
         lv = self.left.evaluate_batch(data)
         rv = self.right.evaluate_batch(data)
         with np.errstate(all="ignore"):
@@ -149,19 +159,21 @@ class Node:
                 return lv * rv
             elif self.op == Op.DIV:
                 return np.where(np.abs(rv) < 1e-30, np.inf, lv / rv)
+        raise ValueError(f"Unknown operator: {self.op}")
 
     def to_str(self) -> str:
         """Pretty-print the expression."""
         if self.is_variable():
+            assert self.var_name is not None
             if self.exponent == 1:
                 return self.var_name
             return f"{self.var_name}^{self.exponent}"
         if self.is_constant():
             return str(self.const_val)
+        assert self.left is not None and self.right is not None
+        assert self.op is not None
         ls = self.left.to_str()
         rs = self.right.to_str()
-        if self.op in (Op.ADD, Op.SUB):
-            return f"({ls} {self.op.value} {rs})"
         return f"({ls} {self.op.value} {rs})"
 
     def __repr__(self) -> str:
@@ -175,6 +187,7 @@ class Node:
         elif self.is_constant():
             h = hash(("const", self.const_val))
         else:
+            assert self.left is not None and self.right is not None
             h = hash(("op", self.op, self.left.tree_hash(), self.right.tree_hash()))
         self._hash_cache = h
         return h
@@ -203,6 +216,7 @@ class Node:
         """Return all subtrees (including self) in pre-order."""
         result = [self]
         if self.is_operator():
+            assert self.left is not None and self.right is not None
             result.extend(self.left.all_subtrees())
             result.extend(self.right.all_subtrees())
         return result
@@ -211,8 +225,10 @@ class Node:
         """Bottom-up recomputation of unit signatures."""
         if self.is_leaf():
             return
+        assert self.left is not None and self.right is not None
         self.left.recompute_units()
         self.right.recompute_units()
+        assert self.left.unit_sig is not None and self.right.unit_sig is not None
         if self.op == Op.MUL:
             self.unit_sig = mul_sig(self.left.unit_sig, self.right.unit_sig)
         elif self.op == Op.DIV:

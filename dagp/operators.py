@@ -67,6 +67,7 @@ def _generate_subtrees_with_sig(
             elif pos_tree:
                 tree = pos_tree
             else:
+                assert neg_tree is not None
                 tree = Node.operator(Op.DIV, Node.constant(1), neg_tree)
 
             results.append(tree)
@@ -85,6 +86,7 @@ def generate_all_neighbours(
 
     for st_idx, subtree in enumerate(subtrees):
         st_sig = subtree.unit_sig
+        assert st_sig is not None
         st_size = subtree.size()
         tree_size = tree.size()
 
@@ -160,11 +162,13 @@ def _replace_subtree(tree: Node, target: Node, replacement: Node) -> Optional[No
         return tree.copy()
     new_tree = Node()
     new_tree.op = tree.op
+    assert tree.left is not None and tree.right is not None
     new_tree.left = _replace_subtree(tree.left, target, replacement)
     new_tree.right = _replace_subtree(tree.right, target, replacement)
     if new_tree.left is None or new_tree.right is None:
         return None
     # Recompute unit signature
+    assert new_tree.left.unit_sig is not None and new_tree.right.unit_sig is not None
     if new_tree.op == Op.MUL:
         new_tree.unit_sig = mul_sig(new_tree.left.unit_sig, new_tree.right.unit_sig)
     elif new_tree.op == Op.DIV:

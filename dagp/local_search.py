@@ -79,7 +79,13 @@ def greedy_local_search(
 
             s = best_neighbour.copy()
             best_hash = s.tree_hash()
-            current_mse = eval_cache[best_hash]
+            if eval_cache is not None:
+                current_mse = eval_cache[best_hash]
+            else:
+                if use_linear_scaling:
+                    current_mse, _, _ = compute_mse_linear_scaling(s, data, targets)
+                else:
+                    current_mse = compute_mse(s, data, targets)
             trajectory.append(best_hash)
             if hash_to_tree is not None:
                 hash_to_tree[best_hash] = s.copy()

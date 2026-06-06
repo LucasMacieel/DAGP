@@ -55,7 +55,7 @@ def run_dagp_experiment(
     data: np.ndarray,
     targets: np.ndarray,
     output_dir: Path,
-) -> tuple[LONMetrics, LONMetrics, LONResult, LONResult]:
+) -> tuple[LONMetrics, LONMetrics, LONResult | None, LONResult | None]:
     """
     Run DAGP experiment for a single equation (both scaling variants).
 
@@ -73,7 +73,7 @@ def run_dagp_experiment(
 
     if n_init == 0:
         logger.warning("  No valid initial solutions! Skipping.")
-        empty = LONMetrics(0, 0, 0.0, 0.0, -1.0, 0.0, 0, 0)
+        empty = LONMetrics(0, 0, 0.0, 0.0, -1.0, 0, 0, 0)
         return empty, empty, None, None
 
     if n_init > 5000:
@@ -243,6 +243,7 @@ def main():
         )
         all_metrics[eq_id] = (metrics_ns, metrics_ls)
         if lon_ns is not None:
+            assert lon_ls is not None
             all_lons[eq_id] = (lon_ns, lon_ls)
 
         # Run GP baseline if requested
