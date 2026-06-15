@@ -154,6 +154,30 @@ def extract_lon(
     )
 
 
+def _run_local_search_worker(
+    nb: Node,
+    data: np.ndarray,
+    targets: np.ndarray,
+    var_names: list[str],
+    var_units: list,
+    use_linear_scaling: bool,
+    eval_cache: dict[int, float],
+    step_cache: dict[int, Node | None],
+) -> tuple[int, int]:
+    from dagp.local_search import greedy_local_search
+    result = greedy_local_search(
+        initial=nb,
+        data=data,
+        targets=targets,
+        var_names=var_names,
+        var_units=var_units,
+        use_linear_scaling=use_linear_scaling,
+        eval_cache=eval_cache,
+        step_cache=step_cache,
+    )
+    return nb.tree_hash(), result.final_tree.tree_hash()
+
+
 def _build_lon_edges(
     graph: nx.Graph,
     local_optima: dict[int, Node],
@@ -169,6 +193,7 @@ def _build_lon_edges(
     hash_to_tree: dict[int, Node],
 ) -> None:
     from dagp.operators import generate_all_neighbours
+    from concurrent.futures import ProcessPoolExecutor, as_completed
 
     # 1. Build node_to_optimum mapping and ensure all final optima are cached in hash_to_tree
     node_to_optimum = {}
@@ -188,12 +213,11 @@ def _build_lon_edges(
 
     # 3. Connect basins under neighborhood operator (paper §2.2)
     optima_list = list(local_optima.items())
-
-    for opt_hash, opt_tree in tqdm(
-        optima_list, desc="  Building LON edges", unit="optimum"
-    ):
+    
+    # First pass: Gather all unique unvisited neighbours that require resolution
+    unvisited_nodes = {}
+    for opt_hash, opt_tree in optima_list:
         nodes_in_basin = basin_nodes.get(opt_hash, set())
-        # Always include the local optimum itself
         nodes_in_basin.add(opt_hash)
 
         for h in nodes_in_basin:
@@ -201,27 +225,58 @@ def _build_lon_edges(
             if tree_obj is None:
                 continue
 
-            # Generate neighborhood of this basin expression
             neighbours = generate_all_neighbours(tree_obj, var_names, var_units)
-
             for nb in neighbours:
                 nb_hash = nb.tree_hash()
-                if nb_hash in node_to_optimum:
-                    dest_hash = node_to_optimum[nb_hash]
-                else:
-                    # Run local search to see which basin this neighbour resolves to
-                    result = greedy_local_search(
-                        initial=nb,
-                        data=data,
-                        targets=targets,
-                        var_names=var_names,
-                        var_units=var_units,
-                        use_linear_scaling=use_linear_scaling,
-                        eval_cache=eval_cache,
-                        step_cache=step_cache,
-                    )
-                    dest_hash = result.final_tree.tree_hash()
+                if nb_hash not in node_to_optimum and nb_hash not in unvisited_nodes:
+                    unvisited_nodes[nb_hash] = nb
+
+    # Second pass: Resolve unvisited neighbours in parallel
+    if unvisited_nodes:
+        with ProcessPoolExecutor() as executor:
+            futures = [
+                executor.submit(
+                    _run_local_search_worker,
+                    nb,
+                    data,
+                    targets,
+                    var_names,
+                    var_units,
+                    use_linear_scaling,
+                    eval_cache,
+                    step_cache,
+                )
+                for nb in unvisited_nodes.values()
+            ]
+
+            for f in tqdm(
+                as_completed(futures),
+                total=len(futures),
+                desc="  Resolving unvisited neighbours",
+                unit="sol",
+            ):
+                try:
+                    nb_hash, dest_hash = f.result()
                     node_to_optimum[nb_hash] = dest_hash
+                except Exception:
+                    pass
+
+    # Third pass: Build LON edges sequentially using the resolved node_to_optimum mapping
+    for opt_hash, opt_tree in tqdm(
+        optima_list, desc="  Building LON edges", unit="optimum"
+    ):
+        nodes_in_basin = basin_nodes.get(opt_hash, set())
+        nodes_in_basin.add(opt_hash)
+
+        for h in nodes_in_basin:
+            tree_obj = hash_to_tree.get(h)
+            if tree_obj is None:
+                continue
+
+            neighbours = generate_all_neighbours(tree_obj, var_names, var_units)
+            for nb in neighbours:
+                nb_hash = nb.tree_hash()
+                dest_hash = node_to_optimum.get(nb_hash)
 
                 # If this neighbour resolves to a different known optimum, create an undirected edge
                 if dest_hash in local_optima and dest_hash != opt_hash:

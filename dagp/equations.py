@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 from dataclasses import dataclass, field
+import math
 from pathlib import Path
 from typing import Callable
 
@@ -99,6 +100,17 @@ _reg(
         var_names=["mu", "Nn"],
         target_unit=_get_unit("F"),
         func=lambda mu, Nn: mu * Nn,
+    )
+)
+
+# I.12.2: F = q1 * q2 / (4 * pi * epsilon * r**2)
+_reg(
+    FeynmanEquation(
+        id="I.12.2",
+        formula="q1 * q2 / (4 * pi * epsilon * r**2)",
+        var_names=["q1", "q2", "epsilon", "r"],
+        target_unit=_get_unit("F"),
+        func=lambda q1, q2, epsilon, r: q1 * q2 / (4 * math.pi * epsilon * r**2),
     )
 )
 
@@ -213,6 +225,7 @@ _reg(
 )
 
 EXPERIMENTS = [
+    "I.12.2",
     "I.12.5",
     "I.12.1",
     "I.14.3",

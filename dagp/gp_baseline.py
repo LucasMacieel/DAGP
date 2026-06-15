@@ -33,23 +33,26 @@ def _protected_div(a, b):
     with np.errstate(divide="ignore", invalid="ignore"):
         return np.where(np.abs(b) < 1e-10, 1.0, a / b)
 
-
-def run_gp_baseline(
+def _run_single_gp_worker(
+    run: int,
     equation_id: str,
     data: np.ndarray,
     targets: np.ndarray,
     var_names: list[str],
-    n_runs: int = 50,
-    pop_size: int = 500,
-    max_evals: int = 100_000,
-    max_depth: int = 6,
-    mut_prob: float = 0.5,
-    cx_prob: float = 0.9,
-    hit_threshold: float = 1e-9,
-    seed: int = 42,
-    use_linear_scaling: bool = True,
-) -> GPResult:
-    # Clean up any previous DEAP creator definitions
+    pop_size: int,
+    max_evals: int,
+    max_depth: int,
+    mut_prob: float,
+    cx_prob: float,
+    hit_threshold: float,
+    seed: int,
+    use_linear_scaling: bool,
+) -> tuple[float, str, int]:
+    # Setup random seed in child process
+    random.seed(seed + run)
+    np.random.seed(seed + run)
+
+    # Clean up any previous DEAP creator definitions in this process
     creator_any: Any = creator
     if "FitnessMin" in creator_any.__dict__:
         del creator_any.FitnessMin
@@ -165,8 +168,6 @@ def run_gp_baseline(
         return ind1.__class__(new_ind1), ind2.__class__(new_ind2)
 
     def cxGPUniform(ind1, ind2):
-        """Poli and Langdon's Uniform Crossover for GP trees."""
-
         def get_child_indices(tree, idx):
             arity = tree[idx].arity
             children = []
@@ -181,9 +182,7 @@ def run_gp_baseline(
             node1 = ind1[idx1]
             node2 = ind2[idx2]
 
-            # If both are primitives and have the same arity, they are in the common region
             if node1.arity > 0 and node1.arity == node2.arity:
-                # Swap primitives with 50% probability
                 if random.random() < 0.5:
                     n1, n2 = node2, node1
                 else:
@@ -202,7 +201,6 @@ def run_gp_baseline(
 
                 return off1_parts, off2_parts
             else:
-                # Boundary of common region: swap entire subtrees with 50% probability
                 slice1 = ind1.searchSubtree(idx1)
                 slice2 = ind2.searchSubtree(idx2)
 
@@ -236,7 +234,6 @@ def run_gp_baseline(
 
     toolbox.register("expr_mut", gp.genFull, min_=0, max_=2)
 
-    # Custom mutation operators
     def mutHoist(individual):
         if len(individual) < 3:
             return (individual,)
@@ -284,7 +281,6 @@ def run_gp_baseline(
     toolbox.register("mate", mate_random)
     toolbox.register("mutate", mut_random)
 
-    # Limit tree depth
     toolbox.decorate(
         "mate", gp.staticLimit(key=lambda x: x.height, max_value=max_depth)
     )
@@ -292,77 +288,110 @@ def run_gp_baseline(
         "mutate", gp.staticLimit(key=lambda x: x.height, max_value=max_depth)
     )
 
-    all_mse = []
-    best_expressions = []
-    evals_per_run = []
-    hit_evals = []
+    pop = toolbox.population(n=pop_size)
+    hof = tools.HallOfFame(1)
 
-    for run in tqdm(range(n_runs), desc=f"[{equation_id}] GP Baseline", unit="run"):
-        random.seed(seed + run)
-        np.random.seed(seed + run)
+    stats = tools.Statistics(lambda ind: ind.fitness.values)
+    stats.register("min", np.min)
 
-        pop = toolbox.population(n=pop_size)
-        hof = tools.HallOfFame(1)
+    try:
+        run_evals = 0
+        invalid_ind = [ind for ind in pop if not ind.fitness.valid]
+        run_evals += len(invalid_ind)
+        fitnesses = toolbox.map(toolbox.evaluate, invalid_ind)
+        for ind, fit in zip(invalid_ind, fitnesses):
+            ind.fitness.values = fit
 
-        stats = tools.Statistics(lambda ind: ind.fitness.values)
-        stats.register("min", np.min)
+        hof.update(pop)
+        if stats:
+            stats.compile(pop)
 
-        try:
-            run_evals = 0
-            # Custom evolution loop to support early stopping
-            invalid_ind = [ind for ind in pop if not ind.fitness.valid]
-            run_evals += len(invalid_ind)
-            fitnesses = toolbox.map(toolbox.evaluate, invalid_ind)
-            for ind, fit in zip(invalid_ind, fitnesses):
-                ind.fitness.values = fit
+        while run_evals < max_evals and hof[0].fitness.values[0] >= hit_threshold:
+            indices = random.sample(range(len(pop)), 3)
+            indices.sort(key=lambda idx: pop[idx].fitness.values[0])
+            parent1_idx, parent2_idx, worst_idx = indices
+            parent1 = pop[parent1_idx]
+            parent2 = pop[parent2_idx]
 
-            hof.update(pop)
+            off1, _ = toolbox.mate(toolbox.clone(parent1), toolbox.clone(parent2))
+            offspring = off1
+
+            if random.random() < mut_prob:
+                (offspring,) = toolbox.mutate(offspring)
+
+            offspring.fitness.values = toolbox.evaluate(offspring)
+            run_evals += 1
+
+            pop[worst_idx] = offspring
+            hof.update([offspring])
             if stats:
                 stats.compile(pop)
 
-            while run_evals < max_evals and hof[0].fitness.values[0] >= hit_threshold:
-                # 1. Select k = 3 individuals at random
-                indices = random.sample(range(len(pop)), 3)
-                # Sort indices by the MSE (raw fitness value) in ascending order.
-                # Smaller MSE is better. pop[indices[0]] is parent1, pop[indices[1]] is parent2, pop[indices[2]] is worst.
-                indices.sort(key=lambda idx: pop[idx].fitness.values[0])
-                parent1_idx, parent2_idx, worst_idx = indices
-                parent1 = pop[parent1_idx]
-                parent2 = pop[parent2_idx]
-
-                # 2. Recombine the parents to produce one offspring
-                # mate returns a tuple of two offspring; choose the first one
-                off1, _ = toolbox.mate(toolbox.clone(parent1), toolbox.clone(parent2))
-                offspring = off1
-
-                # 3. Mutate the offspring with probability mut_prob (0.5)
-                if random.random() < mut_prob:
-                    (offspring,) = toolbox.mutate(offspring)
-
-                # 4. Evaluate the offspring (exactly 1 evaluation)
-                offspring.fitness.values = toolbox.evaluate(offspring)
-                run_evals += 1
-
-                # 5. Replace the worst of the 3 selected individuals in the population
-                pop[worst_idx] = offspring
-
-                # 6. Update Hall of Fame and stats
-                hof.update([offspring])
-                if stats:
-                    stats.compile(pop)
-        except Exception:
-            all_mse.append(np.inf)
-            best_expressions.append("ERROR")
-            evals_per_run.append(0)
-            continue
-
         best_ind = hof[0]
         best_fit = best_ind.fitness.values[0]
-        all_mse.append(best_fit)
-        best_expressions.append(str(best_ind))
-        evals_per_run.append(run_evals)
-        if best_fit < hit_threshold:
-            hit_evals.append(run_evals)
+        return best_fit, str(best_ind), run_evals
+    except Exception:
+        return np.inf, "ERROR", 0
+
+
+def run_gp_baseline(
+    equation_id: str,
+    data: np.ndarray,
+    targets: np.ndarray,
+    var_names: list[str],
+    n_runs: int = 50,
+    pop_size: int = 500,
+    max_evals: int = 100_000,
+    max_depth: int = 6,
+    mut_prob: float = 0.5,
+    cx_prob: float = 0.9,
+    hit_threshold: float = 1e-9,
+    seed: int = 42,
+    use_linear_scaling: bool = True,
+) -> GPResult:
+    all_mse = [None] * n_runs
+    best_expressions = [None] * n_runs
+    evals_per_run = [None] * n_runs
+
+    from concurrent.futures import ProcessPoolExecutor, as_completed
+
+    with ProcessPoolExecutor() as executor:
+        futures = {
+            executor.submit(
+                _run_single_gp_worker,
+                run,
+                equation_id,
+                data,
+                targets,
+                var_names,
+                pop_size,
+                max_evals,
+                max_depth,
+                mut_prob,
+                cx_prob,
+                hit_threshold,
+                seed,
+                use_linear_scaling,
+            ): run
+            for run in range(n_runs)
+        }
+
+        for f in tqdm(
+            as_completed(futures),
+            total=n_runs,
+            desc=f"[{equation_id}] GP Baseline",
+            unit="run",
+        ):
+            run = futures[f]
+            try:
+                fit, expr, evals = f.result()
+                all_mse[run] = fit
+                best_expressions[run] = expr
+                evals_per_run[run] = evals
+            except Exception:
+                all_mse[run] = np.inf
+                best_expressions[run] = "ERROR"
+                evals_per_run[run] = 0
 
     n_hits = sum(1 for m in all_mse if m < hit_threshold)
     best_idx = int(np.argmin(all_mse))
