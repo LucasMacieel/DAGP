@@ -121,10 +121,10 @@ def plot_violin_metrics(
     all_metrics: dict[str, tuple[LONMetrics, LONMetrics]],
     save_path: str | None = None,
 ) -> None:
-    metric_names = ["nv", "ne", "C", "Cr", "avg_path_len", "pi", "S", "nhits"]
-    metric_labels = ["nv", "ne", "C", "Cr", "l", "π", "S", "nhits"]
+    metric_names = ["nv", "ne", "avg_path_len", "pi", "S", "nhits"]
+    metric_labels = ["nv", "ne", "l", "π", "S", "nhits"]
 
-    fig, axes = plt.subplots(2, 4, figsize=(16, 8))
+    fig, axes = plt.subplots(2, 3, figsize=(12, 8))
     axes = axes.flatten()
 
     for i, (mname, mlabel) in enumerate(zip(metric_names, metric_labels)):

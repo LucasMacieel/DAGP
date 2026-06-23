@@ -86,20 +86,20 @@ def format_metrics_table(
     """
     header = (
         f"{'equation':<12} | "
-        f"{'nv':>4} {'ne':>4} {'C':>5} {'Cr':>5} {'l':>6} {'π':>4} {'S':>3} {'nhits':>5} | "
-        f"{'nv':>4} {'ne':>4} {'C':>5} {'Cr':>5} {'l':>6} {'π':>4} {'S':>3} {'nhits':>5}"
+        f"{'nv':>4} {'ne':>4} {'l':>6} {'π':>4} {'S':>3} {'nhits':>5} | "
+        f"{'nv':>4} {'ne':>4} {'l':>6} {'π':>4} {'S':>3} {'nhits':>5}"
     )
     sep_line = "-" * len(header)
-    label = f"{'':>12} | {'--- no-scaling ---':^42} | {'--- linear-scaling ---':^42}"
+    label = f"{'':>12} | {'--- no-scaling ---':^30} | {'--- linear-scaling ---':^30}"
 
     lines = [label, header, sep_line]
 
     for eq_id, (ns, ls) in results.items():
         line = (
             f"{eq_id:<12} | "
-            f"{ns.nv:>4} {ns.ne:>4} {ns.C:>5.2f} {ns.Cr:>5.2f} "
+            f"{ns.nv:>4} {ns.ne:>4} "
             f"{ns.avg_path_len:>6.2f} {ns.pi:>4} {ns.S:>3} {ns.nhits:>5} | "
-            f"{ls.nv:>4} {ls.ne:>4} {ls.C:>5.2f} {ls.Cr:>5.2f} "
+            f"{ls.nv:>4} {ls.ne:>4} "
             f"{ls.avg_path_len:>6.2f} {ls.pi:>4} {ls.S:>3} {ls.nhits:>5}"
         )
         lines.append(line)
