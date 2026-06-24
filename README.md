@@ -17,7 +17,7 @@ The project is structured modularly under the `dagp/` package:
 ```
 dagp/
 ├── units.py           # UnitSig NamedTuple (m, s, kg, K, V) & commensurate arithmetic (Table 2)
-├── equations.py       # Feynman equations registry (e.g., I.12.5, I.12.1, I.14.3) with target units
+├── equations.py       # Feynman equations registry (15 equations, e.g., I.12.5, III.13.18) with target units
 ├── expression.py      # Expression tree nodes, batch evaluations, MSE/OLS linear scaling, hashing
 ├── initialization.py  # §3.2 — Monomial enumeration matching target unit signatures
 ├── operators.py       # §3.3 — 5 dimension-preserving neighborhood operators
@@ -61,18 +61,19 @@ Deterministic local search (Algorithm 1) traverses the neighborhood, selecting t
 
 ### 5. Local Optima Networks (LON) & Basin Connection Logic
 LONs are built by running the greedy local search from **every** valid initial solution.
-* **Basin-to-Basin Connection**: Directed transitions between basins are mapped. If a single-step neighborhood operator applied to any expression in basin $A$ results in a tree that resolves to local optimum $B$ under greedy search, an undirected edge is established between $A$ and $B$, weighted by transition frequencies.
+* **Basin-to-Basin Connection**: Transitions between basins are mapped. If a single-step neighborhood operator applied to any expression in basin $A$ results in a tree that resolves to local optimum $B$ under greedy search, an undirected edge is established between $A$ and $B$, weighted by transition frequencies.
 
 ### 6. Graph-Theoretic Metrics
-Graph analysis is performed on the undirected view of the network (aligning with Table 5 of the paper):
+
+Graph analysis is performed on the undirected view of the network (aligning with Table 5 of the paper). The formatted results table (`table5_metrics.txt`) prints the following columns:
 * `nv`: Number of vertices (discovered local optima).
 * `ne`: Number of edges.
-* `C`: Global average clustering coefficient.
-* `Cr`: Clustering coefficient of an equivalent random graph.
 * `l`: Average shortest path length (returns `-1.0` if the network is disconnected).
 * `π` (pi): Connectivity indicator: `1` if the graph has exactly one connected component ($S = 1$), `0` otherwise.
 * `S`: Number of connected components.
 * `nhits`: Count of distinct local optima qualifying as successful hits ($\text{MSE} < 10^{-9}$).
+
+*(Note: Clustering coefficients `C` and `Cr` are computed during analysis but are omitted from the final printed reports and plots to match the project formatting).*
 
 ---
 
