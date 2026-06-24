@@ -224,19 +224,31 @@ _reg(
     )
 )
 
+# III.13.18: v = 4 * pi * E_n * d**2 * k / h
+_reg(
+    FeynmanEquation(
+        id="III.13.18",
+        formula="4 * pi * E_n * d**2 * k / h",
+        var_names=["E_n", "d", "k", "h"],
+        target_unit=_get_unit("v"),
+        func=lambda E_n, d, k, h: 4 * math.pi * E_n * d**2 * k / h,
+    )
+)
+
 EXPERIMENTS = [
+    "I.12.1",
     "I.12.2",
     "I.12.5",
-    "I.12.1",
     "I.14.3",
     "I.24.6",
+    "I.25.13",
     "I.29.4",
     "I.34.8",
     "I.39.1",
-    "I.25.13",
     "I.43.16",
     "I.43.31",
     "II.8.31",
     "II.34.2",
+    "III.13.18",
     "III.15.14",
 ]

@@ -9,6 +9,4 @@ wheels/
 # Virtual environments
 .venv
 
-.antigravitycli
-
 Feynman_with_units
