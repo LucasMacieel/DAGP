@@ -73,7 +73,7 @@ def run_dagp_experiment(
 
     if n_init == 0:
         logger.warning("  No valid initial solutions! Skipping.")
-        empty = LONMetrics(0, 0, 0.0, 0.0, -1.0, 0, 0, 0)
+        empty = LONMetrics(0, 0, -1.0, 0, 0, 0)
         return empty, empty, None, None
 
     if n_init > 5000:
@@ -95,7 +95,7 @@ def run_dagp_experiment(
     evals_ns = lon_ns.evaluations_to_hit
     evals_ns_str = str(evals_ns) if evals_ns >= 0 else "-"
     logger.info(
-        f"  Metrics: nv={metrics_ns.nv}, ne={metrics_ns.ne}, C={metrics_ns.C}, Cr={metrics_ns.Cr}, l={metrics_ns.avg_path_len}, nhits={metrics_ns.nhits}, "
+        f"  Metrics: nv={metrics_ns.nv}, ne={metrics_ns.ne}, l={metrics_ns.avg_path_len}, "
         f"pi={metrics_ns.pi}, S={metrics_ns.S}, nhits={metrics_ns.nhits}, evals_to_hit={evals_ns_str}"
     )
 
@@ -115,7 +115,7 @@ def run_dagp_experiment(
     evals_ls = lon_ls.evaluations_to_hit
     evals_ls_str = str(evals_ls) if evals_ls >= 0 else "-"
     logger.info(
-        f"  Metrics: nv={metrics_ls.nv}, ne={metrics_ls.ne}, C={metrics_ls.C}, Cr={metrics_ls.Cr}, l={metrics_ls.avg_path_len}, nhits={metrics_ls.nhits}, "
+        f"  Metrics: nv={metrics_ls.nv}, ne={metrics_ls.ne}, l={metrics_ls.avg_path_len}, "
         f"pi={metrics_ls.pi}, S={metrics_ls.S}, nhits={metrics_ls.nhits}, evals_to_hit={evals_ls_str}"
     )
 

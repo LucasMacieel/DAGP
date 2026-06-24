@@ -73,8 +73,6 @@ Graph analysis is performed on the undirected view of the network (aligning with
 * `S`: Number of connected components.
 * `nhits`: Count of distinct local optima qualifying as successful hits ($\text{MSE} < 10^{-9}$).
 
-*(Note: Clustering coefficients `C` and `Cr` are computed during analysis but are omitted from the final printed reports and plots to match the project formatting).*
-
 ---
 
 ## Genetic Programming (GP) Comparison Baseline

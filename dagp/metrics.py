@@ -13,8 +13,6 @@ class LONMetrics:
 
     nv: int  # number of vertices
     ne: int  # number of edges
-    C: float  # clustering coefficient
-    Cr: float  # clustering coefficient of random graph
     avg_path_len: float  # average shortest path length (-1 if disconnected)
     pi: int  # connectivity (1 if fully connected, 0 if disconnected)
     S: int  # number of connected components
@@ -32,20 +30,11 @@ def compute_metrics(graph: nx.Graph, nhits: int) -> LONMetrics:
         return LONMetrics(
             nv=nv,
             ne=ne,
-            C=0.0,
-            Cr=0.0,
             avg_path_len=0.0 if nv == 1 else -1.0,
             pi=1 if nv == 1 else 0,
             S=1 if nv >= 1 else 0,
             nhits=nhits,
         )
-
-    # --- Clustering coefficient ---
-    C = nx.average_clustering(G)
-
-    # Clustering of equivalent random graph: Cr = p = 2*ne / (nv*(nv-1))
-    p = 2.0 * ne / (nv * (nv - 1))
-    Cr = p
 
     # --- Average shortest path length ---
     if nx.is_connected(G):
@@ -63,8 +52,6 @@ def compute_metrics(graph: nx.Graph, nhits: int) -> LONMetrics:
     return LONMetrics(
         nv=nv,
         ne=ne,
-        C=round(C, 2),
-        Cr=round(Cr, 2),
         avg_path_len=round(avg_path_len, 2) if avg_path_len >= 0 else avg_path_len,
         pi=pi,
         S=S,
