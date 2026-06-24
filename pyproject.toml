@@ -20,3 +20,7 @@ project-includes = [
     "**/*.py*",
     "**/*.ipynb",
 ]
+
+[tool.mypy]
+ignore_missing_imports = true
+

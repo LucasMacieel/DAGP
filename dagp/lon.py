@@ -165,6 +165,7 @@ def _run_local_search_worker(
     step_cache: dict[int, Node | None],
 ) -> tuple[int, int]:
     from dagp.local_search import greedy_local_search
+
     result = greedy_local_search(
         initial=nb,
         data=data,
@@ -206,14 +207,14 @@ def _build_lon_edges(
             node_to_optimum[h] = final_hash
 
     # 2. Group all visited node hashes into sets belonging to each basin
-    basin_nodes = {opt_hash: set() for opt_hash in local_optima}
+    basin_nodes: dict[int, set[int]] = {opt_hash: set() for opt_hash in local_optima}
     for h, opt_hash in node_to_optimum.items():
         if opt_hash in basin_nodes:
             basin_nodes[opt_hash].add(h)
 
     # 3. Connect basins under neighborhood operator (paper §2.2)
     optima_list = list(local_optima.items())
-    
+
     # First pass: Gather all unique unvisited neighbours that require resolution
     unvisited_nodes = {}
     for opt_hash, opt_tree in optima_list:

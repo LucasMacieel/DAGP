@@ -33,6 +33,7 @@ def _protected_div(a, b):
     with np.errstate(divide="ignore", invalid="ignore"):
         return np.where(np.abs(b) < 1e-10, 1.0, a / b)
 
+
 def _run_single_gp_worker(
     run: int,
     equation_id: str,
@@ -84,7 +85,7 @@ def _run_single_gp_worker(
     toolbox.register("population", tools.initRepeat, list, toolbox.individual)
     toolbox.register("compile", gp.compile, pset=pset)
 
-    evaluation_cache = {}
+    evaluation_cache: dict[str, tuple[float]] = {}
 
     def eval_individual(individual) -> tuple[float]:
         expr_str = str(individual)
@@ -349,9 +350,9 @@ def run_gp_baseline(
     seed: int = 42,
     use_linear_scaling: bool = True,
 ) -> GPResult:
-    all_mse = [None] * n_runs
-    best_expressions = [None] * n_runs
-    evals_per_run = [None] * n_runs
+    all_mse: list[float] = [float("inf")] * n_runs
+    best_expressions: list[str] = [""] * n_runs
+    evals_per_run: list[int] = [0] * n_runs
 
     from concurrent.futures import ProcessPoolExecutor, as_completed
 

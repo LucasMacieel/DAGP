@@ -26,6 +26,9 @@ def plot_lon(
     if G.number_of_nodes() == 0:
         return
 
+    from typing import Any
+
+    fig: Any
     if ax is None:
         fig, ax = plt.subplots(1, 1, figsize=(6, 6))
     else:
@@ -38,7 +41,7 @@ def plot_lon(
         pos = nx.spring_layout(G, seed=42, k=2.0 / np.sqrt(G.number_of_nodes()))
 
     # Node sizes: proportional to number of searches that ended here
-    basin_sizes = {}
+    basin_sizes: dict[int, int] = {}
     for result in lon_result.search_results:
         h = result.final_tree.tree_hash()
         basin_sizes[h] = basin_sizes.get(h, 0) + 1
