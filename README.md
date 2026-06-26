@@ -1,6 +1,6 @@
 # DAGP — Dimensionally-Aware Genetic Programming
 
-Implementation of experiments and comparison baseline from:
+Implementation of experiments and comparison with baseline from:
 
 > Durasevic et al., *Fitness Landscape Analysis of Dimensionally-Aware Genetic Programming Featuring Feynman Equations* ([arXiv:2004.12762](https://arxiv.org/abs/2004.12762))
 
@@ -101,20 +101,20 @@ uv venv
 source .venv/bin/activate
 
 # Install dependencies and the local package
-uv pip install -e .
+uv sync
 ```
 
 ### Running Experiments
 
 ```bash
 # Run the core local search & LON extraction pipeline
-python run_experiments.py
+uv run run_experiments.py
 
-# Run the pipeline including the standard GP comparison baseline
-python run_experiments.py --gp
+# Run the pipeline, including the standard GP comparison baseline
+uv run run_experiments.py --gp
 
 # Customize the number of sample data points
-python run_experiments.py --n-samples 200 --gp
+uv run run_experiments.py --n-samples 200 --gp
 ```
 
 ### Options
